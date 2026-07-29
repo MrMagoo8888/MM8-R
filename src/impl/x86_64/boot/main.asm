@@ -67,28 +67,46 @@ check_long_mode:
     mov bl, "L"
     jmp trigger_error
 
+
+
+
 setup_page_tables:
     mov eax, page_table_l3
     or eax, 0b11    ; Present, writable
     mov [page_table_l4], eax
-
-    mov eax, page_table_l2
-    or eax, 0b11    ; Present, writable
-    mov [page_table_l3], eax
-
     mov ecx, 0  ; counter
-.loop:
-
-    mov eax, 0x200000   ; 2MiB
-    mul ecx
-    or eax, 0b10000011  ; Present, writable, huge page ;)
-    mov [page_table_l2 + ecx * 8], eax
+.link_l3_loop:
+    mov eax, 4096                       ; size of 1 table
+    mul ecx                             ; ofset for current l2
+    add eax, page_table_l2              ; physical base of l2 array
+    or eax, 0b11                        ; preesent + writable
+    mov [page_table_l3 + ecx * 8], eax  ; linke to l3 array 
 
     inc ecx
-    cmp ecx, 2048    ; Check if whole table is mapped
-    jne .loop       ; if not, continue
+    cmp ecx, 8      ; like all 8 tables (8gib)
+    jne .link_l3_loop
 
+    ; map 4096 huge maps (2MiB)
+    mov ecx, 0
+.map_l2_loop:
+    ; calc physical address: eax = ecx * 2mib
+    mov eax, 0x200000   ; 2mib in bytes
+    mul ecx             ; edx:eax = ecx * 2mib
+
+    ; for >4gb maps, physical addresses exceed 32bits
+    ; edx holds upper 32bit, eax holds lower 32
+    or eax, 0x83        ; Present + Writable + Huge page (bit 7)
+
+    ; write 64bit page table into mem
+    mov [page_table_l2 + ecx * 8], eax             ; lower 32 bits + flags
+    mov [page_table_l2 + ecx * 8 + 4], edx         ; upper 32 bits (holds bits 32 - 63 of address)
+
+    inc ecx
+    cmp ecx, 4096       ; 512 entries * 8 tables = 4096 total pagres
+    jne .map_l2_loop
     ret
+
+
 
 enable_paging:
     ; pass table location into cpu
@@ -184,4 +202,4 @@ gdt64:
 .pointer:
     dw $ - gdt64 - 1
     dq gdt64
-    
+
