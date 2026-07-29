@@ -85,7 +85,7 @@ setup_page_tables:
     mov [page_table_l2 + ecx * 8], eax
 
     inc ecx
-    cmp ecx, 512    ; Check if whole table is mapped
+    cmp ecx, 2048    ; Check if whole table is mapped
     jne .loop       ; if not, continue
 
     ret
@@ -167,7 +167,7 @@ page_table_l4:
 page_table_l3:
     resb 4096
 page_table_l2:
-    resb 4096
+    resb 4096 * 8   ; 8 l2s for 8gb
 
 stack_bum:
     resb 4096 * 4
@@ -184,4 +184,4 @@ gdt64:
 .pointer:
     dw $ - gdt64 - 1
     dq gdt64
-
+    
