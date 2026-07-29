@@ -7,7 +7,11 @@ section .text
 
 _start:
 start:
+    mov [multiboot_ptr], ebx
     mov esp, stack_top
+
+    ; save multiboot pointer
+    ;push ebx
 
     call check_multiboot
     call check_cpuid
@@ -17,6 +21,11 @@ start:
     call enable_paging
 
     lgdt [gdt64.pointer]
+
+    ; restore multiboot pointer
+    ;pop ebx
+    mov ebx, [multiboot_ptr] 
+
     jmp gdt64.code_segment:long_mode_start
     
 
@@ -179,7 +188,12 @@ section .data
     error_template: db "ERR: X", 0
 
 section .bss
-align 4096                        ; System V ABI requires 16-byte stack alignment me thinks
+
+; Multiboot pointer
+multiboot_ptr resd 1
+
+
+alignb 4096                  ; System V ABI requires 16-byte stack alignment me thinks
 page_table_l4:
     resb 4096
 page_table_l3:
@@ -189,6 +203,7 @@ page_table_l2:
 
 stack_bum:
     resb 4096 * 4
+global stack_top
 stack_top:
 
 

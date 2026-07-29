@@ -1,32 +1,30 @@
-#include "vbe.h"
 #include "stdint.h"
+#include "vbe.h"
 
-// Keep framebuffer details private to this file
 static uint32_t* fb_addr = 0;
 static uint32_t fb_width = 0;
 static uint32_t fb_height = 0;
-static uint32_t fb_pitch = 0; // Number of bytes per scanline
+static uint32_t fb_pitch = 0;
 
 void vbe_init(uint64_t multiboot_addr) {
-    // First 4 bytes contain total size of the multiboot structure
-    uint32_t total_size = *(uint32_t*)multiboot_addr;
-    
-    // First tag starts 8 bytes after the base address
     struct multiboot_tag* tag = (struct multiboot_tag*)(multiboot_addr + 8);
 
-    // Loop through tags until we hit an end tag (type 0)
     while (tag->type != 0) {
-        if (tag->type == 8) { // Type 8 is Framebuffer info
+        if (tag->type == 8) {
             struct multiboot_tag_framebuffer* fb_tag = (struct multiboot_tag_framebuffer*)tag;
             
             fb_addr = (uint32_t*)fb_tag->framebuffer_addr;
             fb_width = fb_tag->framebuffer_width;
             fb_height = fb_tag->framebuffer_height;
             fb_pitch = fb_tag->framebuffer_pitch;
-            break;
+
+            // Old test, works, code retired but may be brought backfor
+            uint32_t total_pixels = fb_width * fb_height;
+            for (uint32_t i = 0; i < total_pixels; i++) {
+                fb_addr[i] = 0x00FF0000; // Bright Red
+            }
+            return; // Exit early once found
         }
-        
-        // Advance to next tag (aligned to 8 bytes boundary)
         tag = (struct multiboot_tag*)((uint64_t)tag + ((tag->size + 7) & ~7));
     }
 }
