@@ -1,30 +1,27 @@
-include build_scripts/config.mk
-include build_scripts/toolchain.mk
-
-# ------------------------------------------------------------------------------
-# Abstraction & Variables
-# ------------------------------------------------------------------------------
-ARCH        := x86_64
-SRC_DIR     := src/impl/$(ARCH)
+ARCH        ?= x86_64
+SRC_DIR     := src
 BUILD_DIR   := build/$(ARCH)
 DIST_DIR    := dist/$(ARCH)
 TARGET_DIR  := targets/$(ARCH)
 
-# Toolchain setup
-CROSS_COMPILE ?= $(ARCH)-elf-
-NASM          ?= nasm
-LD            := $(CROSS_COMPILE)ld
-GRUB_MKRESCUE ?= grub-mkrescue
+TOOLCHAIN_BIN := /home/mm8/code/os/mm8/MM8-R/toolchain/x86_64-elf/bin
+NASM        := nasm
+LD          := $(TOOLCHAIN_BIN)/x86_64-elf-ld
+CC          := $(TOOLCHAIN_BIN)/x86_64-elf-gcc
 
+CFLAGS      := -m64 -ffreestanding -O2 -Wall -Wextra -I$(SRC_DIR)/impl/kernel -I$(SRC_DIR)/impl/x86_64/boot
 ASM_FLAGS   := -f elf64
 LD_FLAGS    := -n -T $(TARGET_DIR)/linker.ld
 
-# Clean, robust recursive wildcard implementation
-rwildcard = $(wildcard $1/$2) $(foreach d,$(wildcard $1/*),$(call rwildcard,$d,$2))
+rwildcard    = $(foreach d,$(wildcard $(1)/*),$(call rwildcard,$(d),$(2)) $(filter $(subst *,%,$(2)),$(d)))
 
-# Discover files - strip whitespace to prevent path matching bugs
+
+# Discover files 
 ASM_SRCS    := $(strip $(call rwildcard,$(SRC_DIR),*.asm))
-ASM_OBJS    := $(patsubst $(SRC_DIR)/%.asm,$(BUILD_DIR)/%.o,$(ASM_SRCS))
+ASM_OBJS    := $(patsubst src/%.asm,build/$(ARCH)/%.o,$(ASM_SRCS))
+
+C_SRCS      := $(strip $(call rwildcard,$(SRC_DIR),*.c))
+C_OBJS      := $(patsubst src/%.c,build/$(ARCH)/%.o,$(C_SRCS))
 
 KERNEL_BIN  := $(DIST_DIR)/kernel.bin
 KERNEL_ISO  := $(DIST_DIR)/kernel.iso
@@ -35,9 +32,8 @@ ifeq ($(ASM_SRCS),)
 $(error No .asm source files found in '$(SRC_DIR)'. Please check directory path and file extensions)
 endif
 
-# ------------------------------------------------------------------------------
-# Targets & Rules
-# ------------------------------------------------------------------------------
+
+# Targets und Rules
 .DEFAULT_GOAL := all
 
 .PHONY: all clean build-$(ARCH)
@@ -51,8 +47,13 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.asm
 	@mkdir -p $(dir $@)
 	$(NASM) $(ASM_FLAGS) $< -o $@
 
-# Link kernel binary
-$(KERNEL_BIN): $(ASM_OBJS)
+# Compile C sources to Object files
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Link kernel binary 
+$(KERNEL_BIN): $(ASM_OBJS) $(C_OBJS)
 	@mkdir -p $(dir $@)
 	$(LD) $(LD_FLAGS) -o $@ $^
 
