@@ -61,7 +61,7 @@ $(KERNEL_BIN): $(ASM_OBJS) $(C_OBJS)
 $(KERNEL_ISO): $(KERNEL_BIN)
 	@mkdir -p $(dir $(BOOT_BIN))
 	cp $< $(BOOT_BIN)
-	$(GRUB_MKRESCUE) /usr/lib/grub/i386-pc -o $@ $(TARGET_DIR)/iso
+	grub-mkrescue -d /usr/lib/grub/i386-pc -o $@ $(TARGET_DIR)/iso
 
 clean:
 	rm -rf build dist
