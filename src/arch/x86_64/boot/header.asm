@@ -14,7 +14,7 @@ dd 0x100000000 - (0xe85250d6 + 0 + (header_end - header_start))
     dw 5                         ; Tag type 5 (Framebuffer request)
     dw 0                         ; Flags
     dd 20                        ; Tag size (20 bytes)
-    dd 1920                     ; Preferred Width (e.g., 1024)
+    dd 1920                      ; Preferred Width (e.g., 1024)
     dd 1080                      ; Preferred Height (e.g., 768)
     dd 32                        ; Preferred Bits Per Pixel (32-bit color)
     align 8
