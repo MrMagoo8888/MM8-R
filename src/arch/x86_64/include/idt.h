@@ -1,0 +1,21 @@
+#pragma once
+#include "stdint.h"
+#include "stdbool.h"
+
+typedef enum
+{
+    IDT_FLAG_GATE_64BIT_INT         = 0xE,
+    IDT_FLAG_GATE_64BIT_TRAP        = 0xF,
+
+    IDT_FLAG_RING0                  = (0 << 5),
+    IDT_FLAG_RING1                  = (1 << 5),
+    IDT_FLAG_RING2                  = (2 << 5),
+    IDT_FLAG_RING3                  = (3 << 5),
+
+    IDT_FLAG_PRESENT                = 0x80,
+} IDT_FLAGS;
+
+void x86_64_IDT_Initialize(void);
+void x86_64_IDT_DisableGate(int interrupt);
+void x86_64_IDT_EnableGate(int interrupt);
+void x86_64_IDT_SetGate(int interrupt, void* base, uint16_t segmentDescriptor, uint8_t flags);

@@ -3,6 +3,16 @@
 
 #include "stdint.h"
 
+struct vbe_screen {
+    uint32_t* physical_buffer;
+    uint32_t width;
+    uint32_t height;
+    uint32_t pitch;
+    uint32_t bpp;
+};
+
+extern struct vbe_screen* g_vbe_screen;
+
 // Multiboot2 basic tag header
 struct multiboot_tag {
     uint32_t type;
