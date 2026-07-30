@@ -9,7 +9,7 @@ NASM        := nasm
 LD          := $(TOOLCHAIN_BIN)/x86_64-elf-ld
 CC          := $(TOOLCHAIN_BIN)/x86_64-elf-gcc
 
-CFLAGS      := -m64 -ffreestanding -O2 -Wall -Wextra -I$(SRC_DIR)/impl/kernel -I$(SRC_DIR)/impl/x86_64/boot
+CFLAGS      := -m64 -ffreestanding -O2 -Wall -Wextra -I$(SRC_DIR)/kernel/include -I$(SRC_DIR)/arch/x86_64/include
 ASM_FLAGS   := -f elf64
 LD_FLAGS    := -n -T $(TARGET_DIR)/linker.ld
 
@@ -17,10 +17,10 @@ rwildcard    = $(foreach d,$(wildcard $(1)/*),$(call rwildcard,$(d),$(2)) $(filt
 
 
 # Discover files 
-ASM_SRCS    := $(strip $(call rwildcard,$(SRC_DIR),*.asm))
+ASM_SRCS    := $(strip $(call rwildcard,$(SRC_DIR)/arch,*.asm))
 ASM_OBJS    := $(patsubst src/%.asm,build/$(ARCH)/%.o,$(ASM_SRCS))
 
-C_SRCS      := $(strip $(call rwildcard,$(SRC_DIR),*.c))
+C_SRCS      := $(strip $(call rwildcard,$(SRC_DIR)/kernel,*.c))
 C_OBJS      := $(patsubst src/%.c,build/$(ARCH)/%.o,$(C_SRCS))
 
 KERNEL_BIN  := $(DIST_DIR)/kernel.bin
