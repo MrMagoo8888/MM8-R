@@ -28,10 +28,10 @@ void vbe_init(uint64_t multiboot_addr) {
             g_vbe_screen_storage.bpp = fb_tag->framebuffer_bpp;
 
             // Old test, works, code retired but may be brought backfor
-            uint32_t total_pixels = fb_width * fb_height;
-            for (uint32_t i = 0; i < total_pixels; i++) {
-                fb_addr[i] = 0x00FF0000; // Bright Red
-            }
+            //uint32_t total_pixels = fb_width * fb_height;
+            //for (uint32_t i = 0; i < total_pixels; i++) {
+            //    fb_addr[i] = 0x00FF0000; // Bright Red
+            //}
 
             return; // Exit early once found
         }
