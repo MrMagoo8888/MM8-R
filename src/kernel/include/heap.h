@@ -1,9 +1,16 @@
-#pragma once
+#ifndef HEAP_H  // idk why im trying but oh well
+#define HEAP_H
 
-#include <stdint.h>
-#include <stddef.h>
+#include "stddef.h"
+#include "stdint.h"
+#include "stdbool.h"
 
-void* memcpy(void* dst, const void* src, size_t num);
-void* memset(void* ptr, int value, size_t num);
-int memcmp(const void* ptr1, const void* ptr2, size_t num);
-void* memmove(void* dst, const void* src, size_t num);
+void heap_initialize(void);
+void* kmalloc(size_t size);
+void* kmalloc_aligned(size_t size, size_t alignment);
+void kfree(void* ptr);
+void kfree_aligned(void* ptr);
+void* krealloc(void* ptr, size_t new_size);
+void heap_get_stats(size_t* total, size_t* used, size_t* free_mem);
+
+#endif

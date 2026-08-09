@@ -9,7 +9,7 @@ NASM        := nasm
 LD          := $(TOOLCHAIN_BIN)/x86_64-elf-ld
 CC          := $(TOOLCHAIN_BIN)/x86_64-elf-gcc
 
-CFLAGS      := -m64 -ffreestanding -O2 -Wall -Wextra -I$(SRC_DIR)/kernel/include -I$(SRC_DIR)/arch/x86_64/include
+CFLAGS      := -m64 -ffreestanding -fno-builtin -O2 -Wall -Wextra -I$(SRC_DIR)/kernel/include -I$(SRC_DIR)/arch/x86_64/include
 ASM_FLAGS   := -f elf64
 LD_FLAGS    := -n -T $(TARGET_DIR)/linker.ld
 

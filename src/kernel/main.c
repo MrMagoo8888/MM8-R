@@ -1,6 +1,5 @@
 #include "vbe.h"
 #include "memory.h"
-#include "heap.h"
 #include "liballoc.h"
 
 void kernel_main(uint64_t multiboot_addr) {
