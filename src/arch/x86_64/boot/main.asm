@@ -9,6 +9,7 @@ section .text
 _start:
 start:
     mov [multiboot_ptr], ebx
+    mov [multibootMagic_ptr], eax
     mov esp, stack_top
 
     ; save multiboot pointer
@@ -26,6 +27,7 @@ start:
     ; restore multiboot pointer
     ;pop ebx
     mov ebx, [multiboot_ptr] 
+    mov eax, [multibootMagic_ptr]
 
     jmp gdt64.code_segment:long_mode_start
     
@@ -197,6 +199,7 @@ section .bss
 
 ; Multiboot pointer
 multiboot_ptr resd 1
+multibootMagic_ptr resd 1
 
 
 alignb 4096                  ; System V ABI requires 16-byte stack alignment me thinks

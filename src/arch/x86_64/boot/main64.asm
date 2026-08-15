@@ -16,7 +16,8 @@ long_mode_start:
     ; The multiboot2 information pointer is passed in EBX from the bootloader
     ; Preserve it across the long-mode transition and pass it to the C kernel as
     ; the first argument using the System V AMD64 ABI.
-    mov rdi, rbx
+    mov rdi, rbx    ; multiboot info
+    mov rsi, rax    ; mulitboot magik
 
     ; set up a valid 64-bit stack before entering C code
     lea rsp, [rel stack_top]
