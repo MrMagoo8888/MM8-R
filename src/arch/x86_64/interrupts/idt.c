@@ -40,7 +40,7 @@ void x86_64_IDT_SetGate(int interrupt, void* base, uint16_t segmentDescriptor, u
 
     g_IDT[interrupt].BaseLow         = address & 0xFFFF;
     g_IDT[interrupt].SegmentSelector = segmentDescriptor;
-    g_IDT[interrupt].IST             = 0; // Default to 0 unless you configure an IST in your TSS
+    g_IDT[interrupt].IST             = 0; // Default 0 unless you configure IST in TSS
     g_IDT[interrupt].Flags           = flags;
     g_IDT[interrupt].BaseMid         = (address >> 16) & 0xFFFF;
     g_IDT[interrupt].BaseHigh        = (address >> 32) & 0xFFFFFFFF;

@@ -4,6 +4,7 @@
 #include "memory.h"
 #include "stdio.h"
 #include "stdbool.h"
+#include "string.h"
 //#include "arch/i686/keyboard.h"
 
 uint32_t* g_BackBuffer = NULL;

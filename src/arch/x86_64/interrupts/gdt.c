@@ -88,58 +88,97 @@ typedef enum
 
 struct {
     GDTEntry Null;
-    GDTEntry KernelCode;
-    GDTEntry KernelData;
-    GDTEntry UserCode;
-    GDTEntry UserData;
-    TSSEntryGDT TSS; 
+    GDTEntry KernelCode;    // 0x08
+    GDTEntry KernelData;    // 0x10
+
+    GDTEntry Ring1Code;     // 0x18
+    GDTEntry Ring1Data;     // 0x20
+
+    GDTEntry Ring2Code;     // 0x28
+    GDTEntry Ring2Data;     // 0x30
+
+    GDTEntry UserCode;      // 0x38
+    GDTEntry UserData;      // 0x40
+    TSSEntryGDT TSS;        // 0x48
 } __attribute__((packed)) g_GDT = {
-    // NULL descriptor
     GDT_ENTRY(0, 0, 0, 0),
 
-    // Kernel 64-bit code segment (Base=0, Limit=0, flagged with GDT_FLAG_64BIT)
+    // ring 0 
     GDT_ENTRY(0, 0, GDT_ACCESS_PRESENT | GDT_ACCESS_RING0 | GDT_ACCESS_CODE_SEGMENT | GDT_ACCESS_CODE_READABLE, GDT_FLAG_64BIT),
-
-    // Kernel 64-bit data segment (Flat memory segment)
     GDT_ENTRY(0, 0, GDT_ACCESS_PRESENT | GDT_ACCESS_RING0 | GDT_ACCESS_DATA_SEGMENT | GDT_ACCESS_DATA_WRITEABLE, 0),
-    
-    // user 64-bit code segment
-    GDT_ENTRY(0, 0, GDT_ACCESS_PRESENT | GDT_ACCESS_RING3 | GDT_ACCESS_CODE_SEGMENT | GDT_ACCESS_CODE_READABLE, GDT_FLAG_64BIT),
 
-    // user 64-bit data segment
+    // ring 1
+    GDT_ENTRY(0, 0, GDT_ACCESS_PRESENT | 0x20 | GDT_ACCESS_CODE_SEGMENT | GDT_ACCESS_CODE_READABLE, GDT_FLAG_64BIT),
+    GDT_ENTRY(0, 0, GDT_ACCESS_PRESENT | 0x20 | GDT_ACCESS_DATA_SEGMENT | GDT_ACCESS_DATA_WRITEABLE, 0),
+
+    // ring2
+    GDT_ENTRY(0, 0, GDT_ACCESS_PRESENT | 0x40 | GDT_ACCESS_CODE_SEGMENT | GDT_ACCESS_CODE_READABLE, GDT_FLAG_64BIT),
+    GDT_ENTRY(0, 0, GDT_ACCESS_PRESENT | 0x40 | GDT_ACCESS_DATA_SEGMENT | GDT_ACCESS_DATA_WRITEABLE, 0),
+
+    // ring 3 
+    GDT_ENTRY(0, 0, GDT_ACCESS_PRESENT | GDT_ACCESS_RING3 | GDT_ACCESS_CODE_SEGMENT | GDT_ACCESS_CODE_READABLE, GDT_FLAG_64BIT),
     GDT_ENTRY(0, 0, GDT_ACCESS_PRESENT | GDT_ACCESS_RING3 | GDT_ACCESS_DATA_SEGMENT | GDT_ACCESS_DATA_WRITEABLE, 0),
 
-    // TSS Entry allocation space placeholder (takes 16 bytes matching structural packing)
+    // TSS alloc
     { GDT_ENTRY(0, 0, 0, 0), 0, 0 } 
 };
 
 GDTDescriptor g_GDTDescriptor = { sizeof(g_GDT) - 1, &g_GDT };
 
 
-extern void x86_64_GDT_Load(GDTDescriptor* descriptor, uint16_t codeSegment, uint16_t dataSegment);
+void x86_64_TSS_SetStacks(uint64_t ring0RSP, uint64_t ring1RSP, uint64_t ring2RSP) {
+    g_TSS.rsp0 = ring0RSP;
+    g_TSS.rsp1 = ring1RSP;
+    g_TSS.rsp2 = ring2RSP;
+}
 
 void x86_64_GDT_Initialize()
 {
-
     memset(&g_TSS, 0, sizeof(g_TSS));
     g_TSS.iomap_base = sizeof(g_TSS);
 
     uint64_t tss_base = (uint64_t)&g_TSS;
     uint32_t tss_limit = sizeof(g_TSS) - 1;
 
-
     g_GDT.TSS.StandardGate.LimitLow    = GDT_LIMIT_LOW(tss_limit);
     g_GDT.TSS.StandardGate.BaseLow     = GDT_BASE_LOW(tss_base);
     g_GDT.TSS.StandardGate.BaseMiddle  = GDT_BASE_MIDDLE(tss_base);
-    g_GDT.TSS.StandardGate.Access      = GDT_ACCESS_PRESENT | GDT_ACCESS_RING0 | GDT_ACCESS_DESCRIPTOR_TSS; // 0x89
+    g_GDT.TSS.StandardGate.Access      = GDT_ACCESS_PRESENT | GDT_ACCESS_RING0 | GDT_ACCESS_DESCRIPTOR_TSS; 
     g_GDT.TSS.StandardGate.FlagsLimitHi = GDT_FLAGS_LIMIT_HI(tss_limit, 0);
     g_GDT.TSS.StandardGate.BaseHigh    = GDT_BASE_HIGH(tss_base);
-    g_GDT.TSS.BaseUpper            = (tss_base >> 32) & 0xFFFFFFFF;
+    g_GDT.TSS.BaseUpper                = (tss_base >> 32) & 0xFFFFFFFF;
     g_GDT.TSS.Reserved                 = 0;
-
 
     x86_64_GDT_Load(&g_GDTDescriptor, 0x08, 0x10);
     
+    __asm__ volatile("ltr %%ax" : : "a" (0x48)); 
+}
 
-    __asm__ volatile("ltr %%ax" : : "a" (0x28));
+// Load GDT and update segment registers. Implemented in C with inline asm
+// to avoid needing a separate assembly file.
+void x86_64_GDT_Load(void* descriptor, uint16_t codeSegment, uint16_t dataSegment)
+{
+    // Load GDTR
+    __asm__ volatile ("lgdt (%0)" : : "r" (descriptor));
+
+    // Load data segment registers (DS, ES, FS, GS, SS)
+    __asm__ volatile (
+        "mov %0, %%ax\n\t"
+        "mov %%ax, %%ds\n\t"
+        "mov %%ax, %%es\n\t"
+        "mov %%ax, %%fs\n\t"
+        "mov %%ax, %%gs\n\t"
+        "mov %%ax, %%ss\n\t"
+        : : "r" (dataSegment) : "rax"
+    );
+
+    // Far return to reload CS register. Push selector then RIP and lretq.
+    __asm__ volatile (
+        "pushq %0\n\t"
+        "leaq 1f(%%rip), %%rax\n\t"
+        "pushq %%rax\n\t"
+        "lretq\n\t"
+        "1:\n\t"
+        : : "r" ((uint64_t)codeSegment) : "rax"
+    );
 }

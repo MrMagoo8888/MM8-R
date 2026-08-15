@@ -2,6 +2,7 @@ global header_start
 global start                   ; Usually required by linkers
 extern long_mode_start
 
+
 section .text
 [bits 32]
 
