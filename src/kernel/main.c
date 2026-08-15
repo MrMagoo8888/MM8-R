@@ -16,10 +16,16 @@ void kernel_main(uint64_t multiboot_addr, uint64_t magic) {
         return;
     }
 
-    // parse mbi tot size
+    // init with real multiboot addr
+    x86_64_GDT_Initialize();
+    memory_init(multiboot_addr);
+    x86_64_IDT_Initialize();
+    vbe_init(multiboot_addr);
+
+    // parse mbi total size
     uint32_t mbi_size = *(volatile uint32_t*)multiboot_addr;
 
-    // loop tags starting 8byte after base
+    // loop tags starting 8 bytes after the base
     uint64_t current_tag_addr = multiboot_addr + 8;
     void* acpi_rsdp = NULL;
 
@@ -30,11 +36,7 @@ void kernel_main(uint64_t multiboot_addr, uint64_t magic) {
             break;
         }
 
-        if (tag->type == 8) {   // tag 5 vbe info
-            // init graphics buffer
-            vbe_init((void*)tag);
-        }
-        else if (tag->type == 15) {     // ACPI 2.0+ RSDP
+        if (tag->type == 15) {     // ACPI 2.0+ RSDP
             acpi_rsdp = (void*)(current_tag_addr + 8);
         }
         else if (tag->type == 14) {     // ACPI 1.0 fallback
@@ -47,21 +49,10 @@ void kernel_main(uint64_t multiboot_addr, uint64_t magic) {
         current_tag_addr += ((tag->size + 7) & ~7);
     }
 
-
     if (acpi_rsdp) {
         // init pcie
     }
 
-    // init gdt
-    x86_64_GDT_Initialize();
-
-    memory_init(multiboot_addr);
-
-    // init idt
-    x86_64_IDT_Initialize();
-
-    
-    
     // test allocations so allocator exercised
     void *a = malloc(32);
     void *b = malloc(64);

@@ -6,18 +6,18 @@ section .text
 [bits 64]
 
 long_mode_start:
+    ; Preserve the multiboot values before clearing low registers for the 64-bit
+    ; mode transition. The bootloader passes the info pointer in EBX and the
+    ; magic number in EAX.
+    mov rdi, rbx    ; multiboot info pointer
+    mov rsi, rax    ; multiboot magic value
+
     mov ax, 0
     mov ss, ax
     mov ds, ax
     mov es, ax
     mov fs, ax
     mov gs, ax
-
-    ; The multiboot2 information pointer is passed in EBX from the bootloader
-    ; Preserve it across the long-mode transition and pass it to the C kernel as
-    ; the first argument using the System V AMD64 ABI.
-    mov rdi, rbx    ; multiboot info
-    mov rsi, rax    ; mulitboot magik
 
     ; set up a valid 64-bit stack before entering C code
     lea rsp, [rel stack_top]
