@@ -84,4 +84,21 @@ int liballoc_free(void* ptr, int pages) {
 
     memory_free_pages(ptr, (size_t)pages);  // meant to free
     return 0;
+
+
+}
+
+uint64_t allocate_physical_frame(void) {
+    // request one page from the aloccer
+    void* ptr = memory_alloc_pages(1);
+    
+    if (ptr == NULL) {
+        // panic! kerel ran out of inital boot mem
+        // TODO: panic routine
+        //tmp:
+        while(1) { __asm__ volatile("cli; hlt"); }
+    }
+    
+    // ret raw phys addr cast to 64bit int
+    return (uint64_t)ptr;
 }

@@ -2,51 +2,52 @@
 #include "stdint.h"
 #include "string.h"
 #include "stddef.h"
+#include "memory.h"
 
-typedef struct {
-    char signature[8];      // must be "RSD PTR "
-    uint8_t checksum;
-    char oem_id[6];
-    uint8_t revision;       // 0 = ACPI 1.0 (RSDT), 2 = ACPI 2.0+ (XSDT)
-    uint32_t rsdt_address;
-    uint32_t length;
-    uint64_t xsdt_address;  // 64-bit physical pointer to use
-    uint8_t ext_checksum;
-    uint8_t reserved[3];
-} __attribute__((packed)) rsdp_t;
+int strncmp(const char* s1, const char* s2, size_t n) {
+    while (n > 0) {
+        if (*s1 != *s2) {
+            return (int)((unsigned char)*s1 - (unsigned char)*s2);
+        }
+        if (*s1 == '\0') {
+            break;
+        }
+        s1++;
+        s2++;
+        n--;
+    }
+    return 0;
+}
 
-typedef struct {
-    char signature[4];      // magic signatures - "XSDT" "MCFG" "APIC"
-    uint32_t length;
-    uint8_t revision;
-    uint8_t checksum;
-    char oem_id[6];
-    char oem_table_id[8];
-    uint32_t oem_revision;
-    uint32_t creator_id;
-    uint32_t creator_revision;
-} __attribute__((packed)) acpi_header_t;
+uint64_t allocate_physical_frame(uint64_t virtual_offset) {
+    void* ptr = memory_alloc_pages(1);
+    if (ptr == NULL) {
+        while(1) { __asm__ volatile("cli; hlt"); }
+    }
+    memset((void*)((uint64_t)ptr + virtual_offset), 0, 4096);
+    return (uint64_t)ptr;
+}
 
 acpi_header_t* find_mcfg_table(void* rsdp_phys_ptr, uint64_t virtual_offset) {
     rsdp_t* rsdp = (rsdp_t*)((uint64_t)rsdp_phys_ptr + virtual_offset);
 
     // verify sig
-    if (strncmp(rsdp->signature, "RSD PTR", 8) != 0) {
+    if (strncmp(rsdp->signature, "RSD PTR ", 8) != 0) {
         return NULL;
     }
 
     // ensure there is an XSDT avaliable (and revision >=2)
     if (rsdp->revision < 2 || rsdp->xsdt_address == 0) {
-        retun NULL;
+        return NULL;
     }
 
     acpi_header_t* xsdt = (acpi_header_t*)(rsdp->xsdt_address + virtual_offset);
 
     // calc table entries - total table size subtract header size and dived by 8 byte pointer chunks
     int entries = (xsdt->length - sizeof(acpi_header_t)) / 8;
-    uint64_t* table_pointers = (uint64_t)((uint64_t)xsdt + sizeof(acpi_header_t));
+    uint64_t* table_pointers = (uint64_t*)((uint64_t)xsdt + sizeof(acpi_header_t));
 
-    for (int i = 0; 1 < entries; i++) {
+    for (int i = 0; i < entries; i++) {
         acpi_header_t* table = (acpi_header_t*)(table_pointers[i] + virtual_offset);
 
         if (strncmp(table->signature, "MCFG", 4) == 0) {
@@ -55,21 +56,37 @@ acpi_header_t* find_mcfg_table(void* rsdp_phys_ptr, uint64_t virtual_offset) {
     }
 
     return NULL;
-
-
 }
 
-// parse MCFG alloc structur
+void map_pcie_ecam_2mb(uint64_t* pml4_virt, uint64_t phys_base, uint64_t virt_base, uint64_t size_bytes, uint64_t virtual_offset) {
+    uint64_t virt_end = virt_base + size_bytes;
+    uint64_t current_phys = phys_base;
 
-typedef struct {
-    uint64_t base_address;  // physical addr where PCIe registars map
-    uint16_t pci_segment;   // segment group
-    uint8_t start_bus;      // lowest bus no
-    uint8_t end_bus;        // highest bus no
-    uint32_t reserved;      
-} __attribute__((packed)) mcfg_entry_t;
+    for (uint64_t v = virt_base; v < virt_end; v += 0x200000) {
+        uint64_t pml4_idx = PML4_INDEX(v);
+        if (!(pml4_virt[pml4_idx] & PAGE_PRESENT)) {
+            uint64_t new_frame = allocate_physical_frame(virtual_offset);
+            pml4_virt[pml4_idx] = new_frame | PAGE_PRESENT | PAGE_WRITE;
+        }
+        uint64_t* pdpt_virt = (uint64_t*)((pml4_virt[pml4_idx] & ~0xFFF) + virtual_offset);
 
-void initPcie(acpi_header_t* mcfg_header, uint64_t virtual_offset) {
+        uint64_t pdpt_idx = PDPT_INDEX(v);
+        if (!(pdpt_virt[pdpt_idx] & PAGE_PRESENT)) {
+            uint64_t new_frame = allocate_physical_frame(virtual_offset);
+            pdpt_virt[pdpt_idx] = new_frame | PAGE_PRESENT | PAGE_WRITE;
+        }
+        uint64_t* pd_virt = (uint64_t*)((pdpt_virt[pdpt_idx] & ~0xFFF) + virtual_offset);
+
+        uint64_t pd_idx = PD_INDEX(v);
+        pd_virt[pd_idx] = current_phys | MMIO_PAGE_FLAGS | PAGE_LARGE;
+
+        current_phys += 0x200000;
+    }
+
+    __asm__ volatile("mov %%cr3, %%rax; mov %%rax, %%cr3" ::: "rax", "memory");
+}
+
+void initPcie(acpi_header_t* mcfg_header, uint64_t virtual_offset, uint64_t* pml4_virt) {
 
     //take away header size and 8 reserved bytes to calc array bounds
     int total_entries = (mcfg_header->length - sizeof(acpi_header_t) - 8) / sizeof(mcfg_entry_t);
@@ -79,6 +96,13 @@ void initPcie(acpi_header_t* mcfg_header, uint64_t virtual_offset) {
         uint64_t ecam_phys_base = entries[i].base_address;
         uint8_t start_bus = entries[i].start_bus;
         uint8_t end_bus = entries[i].end_bus;
+
+        uint32_t total_buses = (end_bus - start_bus) + 1;
+        uint64_t mapping_size = (uint64_t)total_buses * 1024 * 1024;
+        uint64_t ecam_virt_base = PCIE_VIRTUAL_BASE + ((uint64_t)start_bus * 1024 * 1024);
+
+        map_pcie_ecam_2mb(pml4_virt, ecam_phys_base, ecam_virt_base, mapping_size, virtual_offset);
+        pcie_enumerate_devices(ecam_virt_base);
     }
 
     // TODO: when print or kprint works - please add this to store stuff
@@ -95,6 +119,70 @@ void initPcie(acpi_header_t* mcfg_header, uint64_t virtual_offset) {
     // read/write(bit1) -> 1
     // chache disable(pcd, bit4) -> 1 // MMIO prevents cpu caching hardware register states
     // write through(PWT, bit3) -> 1 
+}
+
+// calc mem addr for pcie device config space
+volatile uint32_t* get_pcie_config_addr(uint64_t ecam_virt_base, uint8_t bus, uint8_t device, uint8_t function, uint16_t offset) {
+    return (volatile uint32_t*)(ecam_virt_base + 
+                               (((uint64_t)bus << 20) | 
+                               ((uint64_t)device << 15) | 
+                               ((uint64_t)function << 12) | 
+                               (offset & 0xFFF)));
+}
+
+void pcie_enumerate_devices(uint64_t ecam_virt_base) {
+    // loop all 256 possible busses
+    for (uint16_t bus = 0; bus < 256; bus++) {
+        // loop all 32 possiple device per bus
+        for (uint8_t dev = 0; dev < 32; dev++) {
+            
+            // read Offset 0x00 to get Vendor ID (lower 16bits) and Device ID (upper 16 bits)
+            volatile uint32_t* reg0 = get_pcie_config_addr(ecam_virt_base, bus, dev, 0, 0x00);
+            uint32_t id_reg = *reg0;
+            uint16_t vendor_id = (uint16_t)(id_reg & 0xFFFF);
+
+            // 0xFFFF means hardware is absent or not responding on this slot
+            if (vendor_id == 0xFFFF) {
+                continue;
+            }
+
+            // read Offset 0x0C to inspect header type (determines if it's multi-function)
+            volatile uint32_t* reg3 = get_pcie_config_addr(ecam_virt_base, bus, dev, 0, 0x0C);
+            uint8_t header_type = (uint8_t)((*reg3 >> 16) & 0xFF);
+            
+            // ff bit7 of header type is set - this is a multi-function device (up to 8 functions)
+            uint8_t max_functions = (header_type & 0x80) ? 8 : 1;
+
+            // iterate over the funcs of device
+            for (uint8_t func = 0; func < max_functions; func++) {
+                volatile uint32_t* func_reg0 = get_pcie_config_addr(ecam_virt_base, bus, dev, func, 0x00);
+                uint32_t func_id = *func_reg0;
+                
+                if ((uint16_t)(func_id & 0xFFFF) == 0xFFFF) {
+                    continue; // skip inactive sub-functions
+                }
+
+                // read: Class Code, Subclass - and Prog IF from Offset 0x08
+                volatile uint32_t* reg2 = get_pcie_config_addr(ecam_virt_base, bus, dev, func, 0x08);
+                uint32_t class_reg = *reg2;
+                uint8_t class_code = (uint8_t)(class_reg >> 24);
+                uint8_t subclass   = (uint8_t)((class_reg >> 16) & 0xFF);
+
+                // identification exapmle
+                // if Class == 0x03 and Subclass == 0x00, it's a VGA Compatible Graphics Controller
+                if (class_code == 0x03 && subclass == 0x00) {
+                    // This matches VBE framebuffer hardware target
+                    // Log or handle graphic acceleration setup here
+                }
+            }
+        }
+    }
+}
 
 
+// call this enable when device is found that is used
+void pcie_enable_device(uint64_t ecam_virt_base, uint8_t bus, uint8_t device, uint8_t function) {
+
+    // command reg is lower 16bits of offset 0x04
+    volatile uint32_t* cmd_status_reg = get_pcie_config_addr(ecam_virt_base, bus, device, function, 0x04);
 }

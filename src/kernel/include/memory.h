@@ -46,5 +46,6 @@ extern void* liballoc_alloc(int);
  */
 extern int liballoc_free(void*,int);
 
+uint64_t allocate_physical_frame(void);
 
 #endif
