@@ -69,3 +69,32 @@ typedef struct {
     uint32_t reserved;      
 } __attribute__((packed)) mcfg_entry_t;
 
+void initPcie(acpi_header_t* mcfg_header, uint64_t virtual_offset) {
+
+    //take away header size and 8 reserved bytes to calc array bounds
+    int total_entries = (mcfg_header->length - sizeof(acpi_header_t) - 8) / sizeof(mcfg_entry_t);
+    mcfg_entry_t* entries = (mcfg_entry_t*)((uint64_t)mcfg_header + sizeof(acpi_header_t) + 8);
+
+    for (int i = 0; i < total_entries; i++) {
+        uint64_t ecam_phys_base = entries[i].base_address;
+        uint8_t start_bus = entries[i].start_bus;
+        uint8_t end_bus = entries[i].end_bus;
+    }
+
+    // TODO: when print or kprint works - please add this to store stuff
+    // kprint("PCIe base: %p, Busses: %d to %d\n", ecam_phys_base, start_bus, end_bus);
+
+    // map into page tables
+    //map_pcie_ecam_space(ecam_phys_base, start_bus, end_bus, virtual_offset);
+
+    // needs to be mapped PML4 -> PDPT -> PD -> PT
+    // each bus needs 1mb of virtual addreses
+    // for default alloc that spans 0 - 255 map 256 mb of contigous space
+    // flags to protect against cpu state corruptio0n:
+    // present(bit0) -> 1
+    // read/write(bit1) -> 1
+    // chache disable(pcd, bit4) -> 1 // MMIO prevents cpu caching hardware register states
+    // write through(PWT, bit3) -> 1 
+
+
+}

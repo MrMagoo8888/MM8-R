@@ -3,8 +3,14 @@
 
 void* memset(void *dest, int val, size_t len) {
 
-    unsigned char *ptr = dest;
+    unsigned char *ptr = (unsigned char*)dest;
     unsigned char c = (unsigned char)val;
+
+    // align dest pointer to 8-byte bound
+    while(len > 0 && ((uintptr_t)ptr & 7) != 0) {
+        *ptr++ = c;
+        len--;
+    }
 
     // optimize for 64-bit chunks if len is large enough
     if (len >= 8) {
@@ -23,32 +29,47 @@ void* memset(void *dest, int val, size_t len) {
     }
 
     // clean remaining bytes
-    while (len--) {
+    while (len > 0) {
         *ptr++ = c;
+        len--;
     }
     return dest;
 }
 
+
+
 void* memcpy(void *dest, const void *src, size_t len) {
 
-    unsigned char *d = dest;
-    const unsigned char *s = src;
+    unsigned char *d = (unsigned char*)dest;
+    const unsigned char *s = (unsigned char*)src;
 
-    // cpy 8 bytes ata time
-    if (len >= 8) {
-        uint64_t *d64 = (uint64_t*)d;
-        const uint64_t *s64 = (const uint64_t*)s;
-        while (len >= 8) {
-            *d64++ = *s64++;
-            len -= 8;
+    // check if ptrs share same relitive alignmnt
+    // if lowest 3bits dont match they cant be aligned at same time
+    if (((uintptr_t)d & 7) == ((uintptr_t)s & 7)) {
+        while (len > 0 && ((uintptr_t)d & 7) != 0) {
+            *d++ = *s++;
+            len--;
         }
-        d = (unsigned char*)d64;
-        s = (const unsigned char*)s64;
+
+        // both are now 8-byt alignd do fast 64bit transfrs
+        if (len >= 8) {
+            uint64_t *d64 = (uint64_t*)d;
+            const uint64_t *s64 = (const uint64_t*)s;
+            while (len >= 8) {
+                *d64++ = *s64++;
+                len -= 8;
+            }
+            d = (unsigned char*)d64;
+            s = (const unsigned char*)s64;
+
+        }
+
     }
 
     // cpy trailing bytes
-    while (len--) {
+    while (len > 0) {
         *d++ = *s++;
+        len--;
     }
     return dest;
 }
