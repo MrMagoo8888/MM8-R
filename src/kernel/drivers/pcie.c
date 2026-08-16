@@ -185,4 +185,53 @@ void pcie_enable_device(uint64_t ecam_virt_base, uint8_t bus, uint8_t device, ui
 
     // command reg is lower 16bits of offset 0x04
     volatile uint32_t* cmd_status_reg = get_pcie_config_addr(ecam_virt_base, bus, device, function, 0x04);
+    uint32_t value = *cmd_status_reg;
+
+    uint16_t command = (uint16_t)(value & 0xFFFF);
+
+    // bit1 mem space enable (allows device to respond to BAR MMIO)
+    // bit2 bus master enable (allows device to proform DMA transfere to sys ram)
+    command |= (1 << 1) | (1 << 2);     // these bitwise oporators are so funky lol
+
+    // write back updated command reg whilst leaving status reg (upper 16 rember) the same
+    *cmd_status_reg = (value & 0xFFFF0000) | command;
+}
+
+// 64bit bar addr parsr 
+// discover mem ranges map
+// dis is stored in base address registers (bars) at offset 0x10
+// pcie devices often nowadays use 64bit bar footprints - consuming two consecutive 32bit bar register slots
+// understand? me neither
+// letsa go
+
+uint64_t pcie_get_bar(uint64_t ecam_virt_base, uint8_t bus, uint8_t device, uint8_t function, uint8_t bar_index) {
+
+    // bar pos's range from index 0 through 5 (offsets 0x10 0x14 0x18 0x1C 0x20 0x24)
+    uint16_t offset = 0x10 + (bar_index * 4);
+
+    // i know a guy who knows a guy who knows a guy..
+    volatile uint32_t* bar_low_ptr = get_pcie_config_addr(ecam_virt_base, bus, device, function, offset);
+    uint32_t bar_low = *bar_low_ptr;
+
+    // bit0 == 1 - legecy I/O space BAR (practically deprecated but who knows what will be pugged in)
+    if ((bar_low >> 1) == 0) {
+        //bit2:1 indicates architcture type
+        // 0x00 - 32bit adress space mappin
+        // 0x02 - 64bit
+        
+        if (((bar_low >> 1) & 3) == 0x02) {
+            volatile uint32_t* bar_high_ptr = get_pcie_config_addr(ecam_virt_base, bus, device, function, offset + 4);
+            uint32_t bar_high = *bar_high_ptr;
+
+            // combine up and low regs masking out lower 4bits of metadata flgs
+            return ((uint64_t)bar_high << 32) | (bar_low & 0xFFFFFFFFFFFFFFF0ULL);
+        }
+
+        // 32bit mem bar path fallback
+        return (bar_low & 0xFFFFFFF0);
+    }
+
+    // legacy i/o space path fallback (mask low 2 bits)
+    return (bar_low & 0xFFFFFFFC);
+
 }

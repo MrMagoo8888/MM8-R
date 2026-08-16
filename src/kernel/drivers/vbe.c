@@ -42,7 +42,7 @@ void vbe_init(uint64_t multiboot_addr) {
 void vbe_put_pixel(uint32_t x, uint32_t y, uint32_t color) {
     if (!fb_addr || x >= fb_width || y >= fb_height) return;
     
-    // Pitch / 4 converts byte offset to uint32_t pixel array index
+    // pitch / 4 converts byte offset to uint32_t pixel array index
     uint32_t index = x + y * (fb_pitch / 4);
     fb_addr[index] = color;
 }
