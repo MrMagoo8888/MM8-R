@@ -4,7 +4,7 @@
 #include "stddef.h"
 #include "memory.h"
 
-int strncmp(const char* s1, const char* s2, size_t n) {
+static int pcie_strncmp(const char* s1, const char* s2, size_t n) {
     while (n > 0) {
         if (*s1 != *s2) {
             return (int)((unsigned char)*s1 - (unsigned char)*s2);
@@ -19,7 +19,7 @@ int strncmp(const char* s1, const char* s2, size_t n) {
     return 0;
 }
 
-uint64_t allocate_physical_frame(uint64_t virtual_offset) {
+static uint64_t allocate_physical_frame_with_offset(uint64_t virtual_offset) {
     void* ptr = memory_alloc_pages(1);
     if (ptr == NULL) {
         while(1) { __asm__ volatile("cli; hlt"); }
@@ -32,7 +32,7 @@ acpi_header_t* find_mcfg_table(void* rsdp_phys_ptr, uint64_t virtual_offset) {
     rsdp_t* rsdp = (rsdp_t*)((uint64_t)rsdp_phys_ptr + virtual_offset);
 
     // verify sig
-    if (strncmp(rsdp->signature, "RSD PTR ", 8) != 0) {
+    if (pcie_strncmp(rsdp->signature, "RSD PTR ", 8) != 0) {
         return NULL;
     }
 
@@ -50,7 +50,7 @@ acpi_header_t* find_mcfg_table(void* rsdp_phys_ptr, uint64_t virtual_offset) {
     for (int i = 0; i < entries; i++) {
         acpi_header_t* table = (acpi_header_t*)(table_pointers[i] + virtual_offset);
 
-        if (strncmp(table->signature, "MCFG", 4) == 0) {
+        if (pcie_strncmp(table->signature, "MCFG", 4) == 0) {
             return table;
         }
     }
@@ -65,14 +65,14 @@ void map_pcie_ecam_2mb(uint64_t* pml4_virt, uint64_t phys_base, uint64_t virt_ba
     for (uint64_t v = virt_base; v < virt_end; v += 0x200000) {
         uint64_t pml4_idx = PML4_INDEX(v);
         if (!(pml4_virt[pml4_idx] & PAGE_PRESENT)) {
-            uint64_t new_frame = allocate_physical_frame(virtual_offset);
+            uint64_t new_frame = allocate_physical_frame_with_offset(virtual_offset);
             pml4_virt[pml4_idx] = new_frame | PAGE_PRESENT | PAGE_WRITE;
         }
         uint64_t* pdpt_virt = (uint64_t*)((pml4_virt[pml4_idx] & ~0xFFF) + virtual_offset);
 
         uint64_t pdpt_idx = PDPT_INDEX(v);
         if (!(pdpt_virt[pdpt_idx] & PAGE_PRESENT)) {
-            uint64_t new_frame = allocate_physical_frame(virtual_offset);
+            uint64_t new_frame = allocate_physical_frame_with_offset(virtual_offset);
             pdpt_virt[pdpt_idx] = new_frame | PAGE_PRESENT | PAGE_WRITE;
         }
         uint64_t* pd_virt = (uint64_t*)((pdpt_virt[pdpt_idx] & ~0xFFF) + virtual_offset);
