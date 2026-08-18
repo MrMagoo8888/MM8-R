@@ -197,6 +197,7 @@ void pcie_enable_device(uint64_t ecam_virt_base, uint8_t bus, uint8_t device, ui
     *cmd_status_reg = (value & 0xFFFF0000) | command;
 }
 
+
 // 64bit bar addr parsr 
 // discover mem ranges map
 // dis is stored in base address registers (bars) at offset 0x10
@@ -235,6 +236,7 @@ uint64_t pcie_get_bar(uint64_t ecam_virt_base, uint8_t bus, uint8_t device, uint
     return (bar_low & 0xFFFFFFFC);
 
 }
+
 
 uint64_t pcie_get_bar_size(uint64_t ecam_virt_base, uint8_t bus, uint8_t device, uint8_t function, uint8_t bar_index) {
     uint16_t offset = 0x10 + (bar_index * 4);
@@ -282,3 +284,17 @@ uint64_t pcie_get_bar_size(uint64_t ecam_virt_base, uint8_t bus, uint8_t device,
     }
 
 }
+
+/*
+Plan:
+Get MCFG parsing working
+Map ECAM region into virtual memory
+Enumerate all buses and devices
+Detect bridges and recurse
+Read and size every BAR correctly
+Assign resources
+Enable memory space and bus mastering
+Route interrupts
+Register drivers per device type
+Then add device-specific init
+*/
