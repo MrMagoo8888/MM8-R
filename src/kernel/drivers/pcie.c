@@ -235,3 +235,50 @@ uint64_t pcie_get_bar(uint64_t ecam_virt_base, uint8_t bus, uint8_t device, uint
     return (bar_low & 0xFFFFFFFC);
 
 }
+
+uint64_t pcie_get_bar_size(uint64_t ecam_virt_base, uint8_t bus, uint8_t device, uint8_t function, uint8_t bar_index) {
+    uint16_t offset = 0x10 + (bar_index * 4);
+    volatile uint32_t* bar_low_ptr = get_pcie_config_addr(ecam_virt_base, bus, device, function, offset);
+    uint32_t og_low = *bar_low_ptr;
+
+    // check if mem space otr legcy io space b'cause bit0 == 0 means mem, bit0 == 1 means legio
+    uint32_t mask_flags = (og_low & 1) ? 0xFFFFFFFC : 0xFFFFFFF0; // crazy new syntax just dropped, clonditional - expression
+    uint8_t is_64_bit = ((og_low & 1) == 0) && (((og_low >> 1) & 3) == 0x02);
+
+    // is mem space
+    if (is_64_bit) {
+        volatile uint32_t* bar_high_ptr = get_pcie_config_addr(ecam_virt_base, bus, device, function, offset + 4);
+        uint32_t og_high = *bar_high_ptr;
+
+        // write 1s to all bits in both registers
+        *bar_low_ptr = 0xFFFFFFFF;
+        *bar_high_ptr = 0xFFFFFFFF;
+
+        // read back hardware response
+        uint32_t response_low = *bar_low_ptr;
+        uint32_t response_high = *bar_high_ptr;
+
+        // restone og vals
+        *bar_low_ptr = og_low;
+        *bar_high_ptr = og_high;
+
+        // calc 64bit
+        uint64_t combined_result = ((uint64_t)response_high << 32) | (response_low & mask_flags);
+        if (combined_result == 0) {
+            return 0;
+        }
+        return (~combined_result) + 1;
+    } else {
+        // 32bit io bar
+        *bar_low_ptr = 0xFFFFFFFF;
+        uint32_t response_low = *bar_low_ptr;
+        *bar_low_ptr = og_low;
+
+        uint32_t masked_response = response_low & mask_flags;
+        if (masked_response == 0) {
+            return 0;
+        }
+        return (uint64_t)((~masked_response) + 1);
+    }
+
+}
