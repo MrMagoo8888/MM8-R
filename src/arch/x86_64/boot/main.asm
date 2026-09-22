@@ -2,12 +2,14 @@ global header_start
 global start                   ; Usually required by linkers
 extern long_mode_start
 
+
 section .text
 [bits 32]
 
 _start:
 start:
     mov [multiboot_ptr], ebx
+    mov [multibootMagic_ptr], eax
     mov esp, stack_top
 
     ; save multiboot pointer
@@ -25,6 +27,7 @@ start:
     ; restore multiboot pointer
     ;pop ebx
     mov ebx, [multiboot_ptr] 
+    mov eax, [multibootMagic_ptr]
 
     jmp gdt64.code_segment:long_mode_start
     
@@ -80,16 +83,20 @@ check_long_mode:
 
 
 setup_page_tables:
+    ; Point PML4[0] to PDPT (page_table_l3). Write full 64-bit entry (low dword + high dword=0)
     mov eax, page_table_l3
     or eax, 0b11    ; Present, writable
-    mov [page_table_l4], eax
+    mov dword [page_table_l4], eax
+    mov dword [page_table_l4 + 4], 0
     mov ecx, 0  ; counter
 .link_l3_loop:
     mov eax, 4096                       ; size of 1 table
     mul ecx                             ; ofset for current l2
     add eax, page_table_l2              ; physical base of l2 array
     or eax, 0b11                        ; preesent + writable
-    mov [page_table_l3 + ecx * 8], eax  ; linke to l3 array 
+    ; write 64-bit entry (low dword = eax, high dword = edx from mul)
+    mov dword [page_table_l3 + ecx * 8], eax
+    mov dword [page_table_l3 + ecx * 8 + 4], edx
 
     inc ecx
     cmp ecx, 8      ; like all 8 tables (8gib)
@@ -118,22 +125,23 @@ setup_page_tables:
 
 
 enable_paging:
-    ; pass table location into cpu
-    mov eax, page_table_l4
-    mov cr3, eax
-
-    ; Enable PAE
+    ; Enable PAE (required for long mode page tables)
     mov eax, cr4
-    or eax, 1 << 5
+    ; Enable PAE (bit 5) and OSFXSR (bit 9) for SSE/XMM support
+    or eax, (1 << 5) | (1 << 9)
     mov cr4, eax
 
-    ; enable long-john silver mode
+    ; enable long mode (EFER.LME)
     mov ecx, 0xC0000080
     rdmsr
     or eax, 1 << 8
     wrmsr
 
-    ; Enable paging
+    ; Load CR3 with PML4 physical address
+    mov eax, page_table_l4
+    mov cr3, eax
+
+    ; Enable paging (CR0.PG)
     mov eax, cr0
     or eax, 1 << 31
     mov cr0, eax
@@ -191,6 +199,7 @@ section .bss
 
 ; Multiboot pointer
 multiboot_ptr resd 1
+multibootMagic_ptr resd 1
 
 
 alignb 4096                  ; System V ABI requires 16-byte stack alignment me thinks
@@ -201,7 +210,6 @@ page_table_l3:
 page_table_l2:
     resb 4096 * 8   ; 8 l2s for 8gb
 
-stack_bum:
     resb 4096 * 4
 global stack_top
 stack_top:
@@ -209,12 +217,20 @@ stack_top:
 
 
 section .rodata
+global page_table_l4
 
 gdt64:
-    dq 0 ; entry
+.code_segment_start:
+    dq 0 ; null descriptor
 .code_segment: equ $ - gdt64
-    dq (1 << 43) | (1 << 44) | (1 << 47) | (1 << 53) ; code segment
+    ; 64-bit code segment descriptor (limit/base are zero, access=0x9A, flags=0xA0)
+    dw 0x0000        ; limit low
+    dw 0x0000        ; base low
+    db 0x00          ; base middle
+    db 0x9A          ; access byte: present, ring 0, code, executable, readable
+    db 0xA0          ; flags: G=1, L=1 (64-bit), D/B=0, AVL=0
+    db 0x00          ; base high
 .pointer:
     dw $ - gdt64 - 1
-    dq gdt64
+    dd gdt64
 

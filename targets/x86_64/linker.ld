@@ -38,5 +38,5 @@ SECTIONS
     /* heap stuff */
     /* force 4096-byte alignment to clear final page boundary safely */
     . = ALIGN(4096);
-    __end = .;
+    __end = .; 
 }

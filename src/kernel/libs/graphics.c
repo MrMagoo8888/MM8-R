@@ -1,8 +1,10 @@
 #include "graphics.h"
 #include "vbe.h"
-#include "heap.h"
+#include "liballoc.h"
 #include "memory.h"
 #include "stdio.h"
+#include "stdbool.h"
+#include "string.h"
 //#include "arch/i686/keyboard.h"
 
 uint32_t* g_BackBuffer = NULL;
@@ -23,11 +25,11 @@ void graphics_init_double_buffer() {
         g_BackBuffer = (uint32_t*)malloc(buffer_size);
         if (g_BackBuffer) {
             memset(g_BackBuffer, 0, buffer_size);
-            // printf("DEBUG: BackBuffer allocated at: %p (Size: %d)\n", g_BackBuffer, buffer_size);
-            // printf("DEBUG: BackBuffer ends at:      %p\n", (uint8_t*)g_BackBuffer + buffer_size);
+            //printf("DEBUG: BackBuffer allocated at: %p (Size: %d)\n", g_BackBuffer, buffer_size);
+            //printf("DEBUG: BackBuffer ends at:      %p\n", (uint8_t*)g_BackBuffer + buffer_size);
         } else {
-            printf("DEBUG: BackBuffer allocation FAILED (Out of memory)!\n");
-            //getch(); // Wait so user sees the error
+            //printf("DEBUG: BackBuffer allocation FAILED (Out of memory)!\n");
+            //getch(); // wait for user to see error
         }
     }
 }
@@ -62,7 +64,7 @@ void graphics_clear_buffer(uint32_t color) {
         target = (uint32_t*)g_vbe_screen->physical_buffer;
     }
     
-    // Optimization for black
+    // optimization for black
     if (color == 0) {
         memset(target, 0, g_vbe_screen->height * g_vbe_screen->pitch);
         return;
@@ -70,7 +72,7 @@ void graphics_clear_buffer(uint32_t color) {
 
     // Fill manually (assuming 32bpp)
     size_t pixels = (g_vbe_screen->height * g_vbe_screen->pitch) / 4;
-    // Use a faster fill if possible, but at least minimize calculations
+    // use a faster fill if possible, but at least minimize calculations
     uint32_t *ptr = target;
     while(pixels--) {
         *ptr++ = color;
@@ -79,13 +81,13 @@ void graphics_clear_buffer(uint32_t color) {
 
 void draw_pixel(int x, int y, uint32_t color)
 {
-    // Add bounds checking to prevent writing outside the framebuffer
+    // add bounds checking to prevent writing outside the framebuffer
     if (!g_vbe_screen || x < 0 || x >= g_vbe_screen->width || y < 0 || y >= g_vbe_screen->height)
     {
         return;
     }
 
-    // We only support 32 bpp for simplicity
+    // we only support 32 bpp for now
     if (g_vbe_screen->bpp != 32)
     {
         return;
@@ -112,7 +114,7 @@ void draw_line(int x0, int y0, int x1, int y1, uint32_t color) {
     int err = (dx > dy ? dx : -dy) / 2;
     int e2;
 
-    // Safety counter to prevent infinite loops if coordinates are wild
+    // safety counter to prevent infinite loops if coordinates are invalid
     int max_iter = 1000000;
     while (max_iter-- > 0) {
         draw_pixel(x0, y0, color);

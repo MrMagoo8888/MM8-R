@@ -1,21 +1,17 @@
-#ifndef STRING_H
-#define STRING_H
-
 #include "stddef.h"
 
-// mem funcs
-void* memcpy(void* dst, const void* src, size_t num);
-void* memset(void* ptr, int value, size_t num);
-void* memmove(void* dst, const void* src, size_t num);
-int memcmp(const void* ptr1, const void* ptr2, size_t num);
+void* memcpy (void *dest, const void *src, size_t len);
+int memcmp (const void *str1, const void *str2, size_t count);
+void* memmove (void *dest, const void *src, size_t len);
+void* memset (void *dest, int val, size_t len);
 
-// string funcs
-int strcmp(const char* str1, const char* str2);
-size_t strlen(const char* str);
-char* strcpy(char* dst, const char* src);
-char* strncpy(char* dst, const char* src, size_t n);
-int strncmp(const char* str1, const char* str2, size_t n);
-const char* strchr(const char* str, int c);
-const char* strrchr(const char* str, int c);
+char* strncpy(char *s1, const char *s2, size_t n);
+char* strcpy(char *dest, const char *src);
 
-#endif
+int strcmp(const char *s1, const char *s2);
+int strncmp(const char *s1, const char *s2, size_t n);
+
+char* strrchr(const char *s, int c);
+char* strchr(const char *s, int c);
+
+size_t strlen(const char *s);

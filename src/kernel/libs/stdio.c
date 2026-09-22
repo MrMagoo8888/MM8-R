@@ -1,4 +1,5 @@
 #include <stdio.h>
+//#include <arch/i686/io.h>
 #include <stdint.h>
 #include "stdio.h"
 #include "stdbool.h"
@@ -8,7 +9,7 @@
 #include "graphics.h"
 #include "font.h"
 #include "heap.h"
-#include "time.h"
+//#include "time.h"
 
 static const char g_HexChars[] = "0123456789abcdef";
 
@@ -41,17 +42,17 @@ uint32_t g_ConsoleDelay = 0;
 static uint8_t* g_ShadowBuffer = NULL;
 uint8_t* g_ScreenBuffer = NULL;
 
-int g_ScreenX = 0, g_ScreenY = 0;
-int g_ConsoleWidth = 80;
-int g_ConsoleHeight = 25;
-int g_FontScale = 2; // Scale 1x by default
+int32_t g_ScreenX = 0, g_ScreenY = 0;
+int32_t g_ConsoleWidth = 80;
+int32_t g_ConsoleHeight = 25;
+int32_t g_FontScale = 2; // Scale 1x by default
 
 // --- Scrollback Buffer ---
 // char scrollback_buffer[SCROLLBACK_LINES][SCREEN_WIDTH];
 char* scrollback_buffer = NULL; // Flat buffer: SCROLLBACK_LINES * g_ConsoleWidth
-int scrollback_start = 0;
-int scrollback_count = 0;
-int scrollback_view = 0;
+int32_t scrollback_start = 0;
+int32_t scrollback_count = 0;
+int32_t scrollback_view = 0;
 
 // --- Live Screen Backup ---
 // static uint8_t live_screen_backup[SCREEN_HEIGHT * SCREEN_WIDTH * 2];
@@ -67,17 +68,17 @@ void console_initialize() {
     // Allocate buffers based on dynamic size
     g_ShadowBuffer = (uint8_t*)malloc(g_ConsoleWidth * g_ConsoleHeight * 2);
     if (!g_ShadowBuffer) {
-        printf("CRITICAL: Failed to allocate console shadow buffer!\n");
+        kprintf("CRITICAL: Failed to allocate console shadow buffer!\n");
     }
     g_ScreenBuffer = g_ShadowBuffer;
     
     live_screen_backup = (uint8_t*)malloc(g_ConsoleWidth * g_ConsoleHeight * 2);
     if (!live_screen_backup) {
-        printf("WARNING: Failed to allocate live screen backup.\n");
+        kprintf("WARNING: Failed to allocate live screen backup.\n");
     }
     scrollback_buffer = (char*)malloc(SCROLLBACK_LINES * g_ConsoleWidth);
     if (!scrollback_buffer) {
-        printf("WARNING: Failed to allocate scrollback buffer.\n");
+        kprintf("WARNING: Failed to allocate scrollback buffer.\n");
     }
 
     // Clear buffers
@@ -88,7 +89,7 @@ void console_initialize() {
     graphics_set_double_buffering(true);
 }
 
-void console_set_font_scale(int scale) {
+void console_set_font_scale(int32_t scale) {
     if (scale < 1) scale = 1;
     if (scale > 8) scale = 8; // Limit max scale
 
@@ -104,7 +105,7 @@ void console_set_font_scale(int scale) {
 }
 
 // Helper to draw a character to the VBE screen
-static void draw_char_at(int x, int y, char c, uint8_t color) {
+static void draw_char_at(int32_t x, int32_t y, char c, uint8_t color) {
     if (!g_vbe_screen) return;
 
     uint32_t fg = vga_colors[color & 0x0F];
@@ -113,20 +114,20 @@ static void draw_char_at(int x, int y, char c, uint8_t color) {
     // Get font data (offset by 32 because our font starts at space)
     const uint8_t* glyph = (c >= 32 && c <= 127) ? font8x8_basic[c - 32] : font8x8_basic[0];
 
-    int screen_x = x * 8 * g_FontScale;
-    int screen_y = y * 8 * g_FontScale;
+    int32_t screen_x = x * 8 * g_FontScale;
+    int32_t screen_y = y * 8 * g_FontScale;
 
     // Draw 8x8 pixels
-    for (int row = 0; row < 8; row++) {
-        for (int col = 0; col < 8; col++) {
+    for (int32_t row = 0; row < 8; row++) {
+        for (int32_t col = 0; col < 8; col++) {
             // Check if the bit is set in the font bitmap
             // Bit 0 is the rightmost pixel, Bit 7 is leftmost
             bool pixel_on = (glyph[row] >> (7 - col)) & 1;
             uint32_t draw_color = pixel_on ? fg : bg;
             
             // Draw scaled pixel
-            for (int sy = 0; sy < g_FontScale; sy++) {
-                for (int sx = 0; sx < g_FontScale; sx++) {
+            for (int32_t sy = 0; sy < g_FontScale; sy++) {
+                for (int32_t sx = 0; sx < g_FontScale; sx++) {
                     draw_pixel(screen_x + col * g_FontScale + sx, 
                                screen_y + row * g_FontScale + sy, 
                                draw_color);
@@ -136,7 +137,7 @@ static void draw_char_at(int x, int y, char c, uint8_t color) {
     }
 }
 
-void putchr(int x, int y, char c)
+void kputchr(int32_t x, int32_t y, char c)
 {
     if (g_ScreenBuffer) {
         // Update shadow buffer
@@ -144,38 +145,38 @@ void putchr(int x, int y, char c)
     }
     
     // Draw to VBE
-    draw_char_at(x, y, c, getcolor(x, y));
+    draw_char_at(x, y, c, kgetcolor(x, y));
 }
 
-void putcolor(int x, int y, uint8_t color)
+void kputcolor(int32_t x, int32_t y, uint8_t color)
 {
     if (!g_ScreenBuffer) return;
     // Update shadow buffer
     g_ScreenBuffer[2 * (y * g_ConsoleWidth + x) + 1] = color;
     
     // Draw to VBE
-    draw_char_at(x, y, getchr(x, y), color);
+    draw_char_at(x, y, kgetchr(x, y), color);
 }
 
-char getchr(int x, int y)
+char kgetchr(int32_t x, int32_t y)
 {
     if (!g_ScreenBuffer) return 0;
     return g_ScreenBuffer[2 * (y * g_ConsoleWidth + x)];
 }
 
-uint8_t getcolor(int x, int y)
+uint8_t kgetcolor(int32_t x, int32_t y)
 {
     if (!g_ScreenBuffer) return DEFAULT_COLOR;
     return g_ScreenBuffer[2 * (y * g_ConsoleWidth + x) + 1];
 }
 
-void setcursor(int x, int y)
+void setcursor(int32_t x, int32_t y)
 {
     // Hardware cursor (VGA ports) doesn't work in VBE mode.
     // We would need to implement a software cursor (e.g., drawing an underscore).
     // For now, we just disable the port writes to avoid issues.
     
-    // int pos = y * SCREEN_WIDTH + x;
+    // int32_t pos = y * SCREEN_WIDTH + x;
     // i686_outb(0x3D4, 0x0F);
     // i686_outb(0x3D5, (uint8_t)(pos & 0xFF));
     // i686_outb(0x3D4, 0x0E);
@@ -186,8 +187,8 @@ void clrscr()
 {
     if (g_ScreenBuffer) {
         // Clear the shadow buffer
-        for (int y = 0; y < g_ConsoleHeight; y++)
-            for (int x = 0; x < g_ConsoleWidth; x++)
+        for (int32_t y = 0; y < g_ConsoleHeight; y++)
+            for (int32_t x = 0; x < g_ConsoleWidth; x++)
             {
                 g_ScreenBuffer[2 * (y * g_ConsoleWidth + x)] = '\0';
                 g_ScreenBuffer[2 * (y * g_ConsoleWidth + x) + 1] = DEFAULT_COLOR;
@@ -204,15 +205,15 @@ void clrscr()
     }
 }
 
-void scrollback(int lines)
+void scrollback(int32_t lines)
 {
     if (!scrollback_buffer) return;
     // Save scrolled-off lines to the scrollback buffer
-    for (int i = 0; i < lines; i++) {
+    for (int32_t i = 0; i < lines; i++) {
         // Save the characters of the top line (y=0)
-        int row_idx = (scrollback_start + scrollback_count) % SCROLLBACK_LINES;
-        for (int x = 0; x < g_ConsoleWidth; x++) {
-            scrollback_buffer[row_idx * g_ConsoleWidth + x] = getchr(x, i);
+        int32_t row_idx = (scrollback_start + scrollback_count) % SCROLLBACK_LINES;
+        for (int32_t x = 0; x < g_ConsoleWidth; x++) {
+            scrollback_buffer[row_idx * g_ConsoleWidth + x] = kgetchr(x, i);
         }
 
         if (scrollback_count < SCROLLBACK_LINES) {
@@ -233,7 +234,7 @@ void scrollback(int lines)
 
     // 2. Move VBE Framebuffer (Pixels)
     if (g_vbe_screen) {
-        int pixel_lines = lines * 8 * g_FontScale;
+        int32_t pixel_lines = lines * 8 * g_FontScale;
         size_t pitch = g_vbe_screen->pitch;
         size_t total_bytes = g_vbe_screen->height * pitch;
         size_t bytes_to_scroll = pixel_lines * pitch;
@@ -251,9 +252,9 @@ void scrollback(int lines)
 
     // 3. Fast Clear Shadow Buffer bottom
     if (g_ScreenBuffer) {
-        for (int y = g_ConsoleHeight - lines; y < g_ConsoleHeight; y++) {
-            for (int x = 0; x < g_ConsoleWidth; x++) {
-                int base = 2 * (y * g_ConsoleWidth + x);
+        for (int32_t y = g_ConsoleHeight - lines; y < g_ConsoleHeight; y++) {
+            for (int32_t x = 0; x < g_ConsoleWidth; x++) {
+                int32_t base = 2 * (y * g_ConsoleWidth + x);
                 g_ScreenBuffer[base] = '\0';
                 g_ScreenBuffer[base + 1] = DEFAULT_COLOR;
             }
@@ -262,7 +263,7 @@ void scrollback(int lines)
 
     // 4. Fast Clear VBE Framebuffer bottom (Pixels)
     if (g_vbe_screen) {
-        int pixel_lines = lines * 8 * g_FontScale;
+        int32_t pixel_lines = lines * 8 * g_FontScale;
         uint32_t bg_color = vga_colors[(DEFAULT_COLOR >> 4) & 0x0F];
         uint32_t pitch = g_vbe_screen->pitch;
         
@@ -270,12 +271,12 @@ void scrollback(int lines)
             ? (uint8_t*)g_BackBuffer
             : (uint8_t*)g_vbe_screen->physical_buffer;
 
-        for (int y = g_vbe_screen->height - pixel_lines; y < g_vbe_screen->height; y++) {
+        for (int32_t y = g_vbe_screen->height - pixel_lines; y < g_vbe_screen->height; y++) {
             uint32_t* line = (uint32_t*)(base_ptr + y * pitch);
             if (bg_color == 0) {
                 memset(line, 0, g_vbe_screen->width * 4);
             } else {
-                for (int x = 0; x < g_vbe_screen->width; x++) {
+                for (int32_t x = 0; x < g_vbe_screen->width; x++) {
                     line[x] = bg_color;
                 }
             }
@@ -286,9 +287,9 @@ void scrollback(int lines)
 }
 
 void console_refresh() {
-    for (int y = 0; y < g_ConsoleHeight; y++) {
-        for (int x = 0; x < g_ConsoleWidth; x++) {
-            draw_char_at(x, y, getchr(x, y), getcolor(x, y));
+    for (int32_t y = 0; y < g_ConsoleHeight; y++) {
+        for (int32_t x = 0; x < g_ConsoleWidth; x++) {
+            draw_char_at(x, y, kgetchr(x, y), kgetcolor(x, y));
         }
     }
     if (g_DoubleBufferEnabled) graphics_swap_buffer();
@@ -296,29 +297,29 @@ void console_refresh() {
 
 void refresh_screen_color()
 {
-    for (int y = 0; y < g_ConsoleHeight; y++) {
-        for (int x = 0; x < g_ConsoleWidth; x++) {
-            putcolor(x, y, DEFAULT_COLOR);
+    for (int32_t y = 0; y < g_ConsoleHeight; y++) {
+        for (int32_t x = 0; x < g_ConsoleWidth; x++) {
+            kputcolor(x, y, DEFAULT_COLOR);
         }
     }
     if (g_DoubleBufferEnabled) graphics_swap_buffer();
 }
 
 static void redraw_from_scrollback() {
-    int top_history_line = scrollback_count - scrollback_view;
-    for (int y = 0; y < g_ConsoleHeight; y++) {
-        int history_line_index = top_history_line - (g_ConsoleHeight - 1 - y);
+    int32_t top_history_line = scrollback_count - scrollback_view;
+    for (int32_t y = 0; y < g_ConsoleHeight; y++) {
+        int32_t history_line_index = top_history_line - (g_ConsoleHeight - 1 - y);
         if (history_line_index >= 0 && history_line_index < scrollback_count) {
-            int buffer_idx = (scrollback_start + history_line_index) % SCROLLBACK_LINES;
-            for (int x = 0; x < g_ConsoleWidth; x++) {
-                putchr(x, y, scrollback_buffer[buffer_idx * g_ConsoleWidth + x]);
-                putcolor(x, y, DEFAULT_COLOR);
+            int32_t buffer_idx = (scrollback_start + history_line_index) % SCROLLBACK_LINES;
+            for (int32_t x = 0; x < g_ConsoleWidth; x++) {
+                kputchr(x, y, scrollback_buffer[buffer_idx * g_ConsoleWidth + x]);
+                kputcolor(x, y, DEFAULT_COLOR);
             }
         } else {
             // Clear lines that are beyond the history
-            for (int x = 0; x < g_ConsoleWidth; x++) {
-                putchr(x, y, ' ');
-                putcolor(x, y, DEFAULT_COLOR);
+            for (int32_t x = 0; x < g_ConsoleWidth; x++) {
+                kputchr(x, y, ' ');
+                kputcolor(x, y, DEFAULT_COLOR);
             }
         }
     }
@@ -355,7 +356,7 @@ void view_scrollback_down() {
     redraw_from_scrollback();
 }
 
-void putc(char c)
+void kputc(char c)
 {
     switch (c)
     {
@@ -367,17 +368,17 @@ void putc(char c)
         case '\b':
             if (g_ScreenX > 0) {
                 g_ScreenX--;
-                putchr(g_ScreenX, g_ScreenY, ' ');
+                kputchr(g_ScreenX, g_ScreenY, ' ');
             } else if (g_ScreenY > 0) {
                 g_ScreenY--;
                 g_ScreenX = g_ConsoleWidth - 1;
-                putchr(g_ScreenX, g_ScreenY, ' ');
+                kputchr(g_ScreenX, g_ScreenY, ' ');
             }
             break;
     
         case '\t':
-            for (int i = 0; i < 4 - (g_ScreenX % 4); i++)
-                putc(' ');
+            for (int32_t i = 0; i < 4 - (g_ScreenX % 4); i++)
+                kputc(' ');
             break;
 
         case '\r':
@@ -385,7 +386,7 @@ void putc(char c)
             break;
 
         default:
-            putchr(g_ScreenX, g_ScreenY, c);
+            kputchr(g_ScreenX, g_ScreenY, c);
             g_ScreenX++;
             break;
     }
@@ -400,21 +401,21 @@ void putc(char c)
 
     setcursor(g_ScreenX, g_ScreenY);
 
-    if (g_ConsoleDelay > 0)
-        sleep_ms(g_ConsoleDelay);
+    /*if (g_ConsoleDelay > 0)
+        sleep_ms(g_ConsoleDelay);   time needed*/
 
     if (g_ConsoleAutoSwap && g_DoubleBufferEnabled)
         graphics_swap_buffer();
 }
 
-void puts(const char* str)
+void kputs(const char* str)
 {
     bool prev = g_ConsoleAutoSwap;
     if (g_ConsoleDelay == 0) g_ConsoleAutoSwap = false;
 
     while(*str)
     {
-        putc(*str);
+        kputc(*str);
         str++;
     }
 
@@ -423,16 +424,16 @@ void puts(const char* str)
         graphics_swap_buffer();
 }
 
-void printf_unsigned(unsigned long long number, int radix, int width, char padding, bool uppercase)
+void printf_unsigned(uint64_t number, int32_t radix, int32_t width, char padding, bool uppercase)
 {
     char buffer[64];
-    int pos = 0;
+    int32_t pos = 0;
     const char* hexChars = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
 
     // convert number to ASCII
     do 
     {
-        unsigned long long rem = number % radix;
+        uint64_t rem = number % radix;
         number /= radix;
         buffer[pos++] = hexChars[rem];
     } while (number > 0);
@@ -440,30 +441,30 @@ void printf_unsigned(unsigned long long number, int radix, int width, char paddi
     // Print padding
     while (pos < width)
     {
-        putc(padding);
+        kputc(padding);
         width--;
     }
 
     // print number in reverse order
     while (--pos >= 0)
-        putc(buffer[pos]);
+        kputc(buffer[pos]);
 }
 
-void printf_signed(long long number, int radix, int width, char padding, bool uppercase)
+void printf_signed(int64_t number, int32_t radix, int32_t width, char padding, bool uppercase)
 {
     if (number < 0)
     {
         if (padding == '0')
         {
-            putc('-');
+            kputc('-');
             printf_unsigned(-number, radix, width > 0 ? width - 1 : 0, padding, uppercase);
         }
         else
         {
             // For space padding, we need to print spaces before the negative sign
             char buffer[32];
-            int pos = 0;
-            unsigned long long abs_val = -number;
+            int32_t pos = 0;
+            uint64_t abs_val = -number;
             const char* hexChars = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
             
             do {
@@ -474,13 +475,13 @@ void printf_signed(long long number, int radix, int width, char padding, bool up
             // padding = width - (digits + sign)
             while (pos + 1 < width)
             {
-                putc(padding);
+                kputc(padding);
                 width--;
             }
 
-            putc('-');
+            kputc('-');
             while (--pos >= 0)
-                putc(buffer[pos]);
+                kputc(buffer[pos]);
         }
     }
     else printf_unsigned(number, radix, width, padding, uppercase);
@@ -500,7 +501,7 @@ void printf_signed(long long number, int radix, int width, char padding, bool up
 #define PRINTF_LENGTH_LONG          3
 #define PRINTF_LENGTH_LONG_LONG     4
 
-void printf(const char* fmt, ...)
+void kprintf(const char* fmt, ...)
 {
     bool prev = g_ConsoleAutoSwap;
     if (g_ConsoleDelay == 0) g_ConsoleAutoSwap = false;
@@ -508,13 +509,13 @@ void printf(const char* fmt, ...)
     va_list args;
     va_start(args, fmt);
 
-    int state = PRINTF_STATE_NORMAL;
-    int length = PRINTF_LENGTH_DEFAULT;
-    int radix = 10;
+    int32_t state = PRINTF_STATE_NORMAL;
+    int32_t length = PRINTF_LENGTH_DEFAULT;
+    int32_t radix = 10;
     bool sign = false;
     bool number = false;
     bool uppercase = false;
-    int width = 0;
+    int32_t width = 0;
     char padding = ' ';
 
     while (*fmt)
@@ -529,7 +530,7 @@ void printf(const char* fmt, ...)
                                 padding = ' ';
                                 uppercase = false;
                                 break;
-                    default:    putc(*fmt);
+                    default:    kputc(*fmt);
                                 break;
                 }
                 break;
@@ -599,14 +600,14 @@ void printf(const char* fmt, ...)
             PRINTF_STATE_SPEC_:
                 switch (*fmt)
                 {
-                    case 'c':   putc((char)va_arg(args, int));
+                    case 'c':   kputc((char)va_arg(args, int32_t));
                                 break;
 
                     case 's':   
-                                puts(va_arg(args, const char*));
+                                kputs(va_arg(args, const char*));
                                 break;
 
-                    case '%':   putc('%');
+                    case '%':   kputc('%');
                                 break;
 
                     case 'd':
@@ -638,13 +639,13 @@ void printf(const char* fmt, ...)
                         {
                         case PRINTF_LENGTH_SHORT_SHORT:
                         case PRINTF_LENGTH_SHORT:
-                        case PRINTF_LENGTH_DEFAULT:     printf_signed(va_arg(args, int), radix, width, padding, uppercase);
+                        case PRINTF_LENGTH_DEFAULT:     printf_signed(va_arg(args, int32_t), radix, width, padding, uppercase);
                                                         break;
 
-                        case PRINTF_LENGTH_LONG:        printf_signed(va_arg(args, long), radix, width, padding, uppercase);
+                        case PRINTF_LENGTH_LONG:        printf_signed(va_arg(args, int32_t), radix, width, padding, uppercase);
                                                         break;
 
-                        case PRINTF_LENGTH_LONG_LONG:   printf_signed(va_arg(args, long long), radix, width, padding, uppercase);
+                        case PRINTF_LENGTH_LONG_LONG:   printf_signed(va_arg(args, int64_t), radix, width, padding, uppercase);
                                                         break;
                         }
                     }
@@ -654,13 +655,13 @@ void printf(const char* fmt, ...)
                         {
                         case PRINTF_LENGTH_SHORT_SHORT:
                         case PRINTF_LENGTH_SHORT:
-                        case PRINTF_LENGTH_DEFAULT:     printf_unsigned(va_arg(args, unsigned int), radix, width, padding, uppercase);
+                        case PRINTF_LENGTH_DEFAULT:     printf_unsigned(va_arg(args, int32_t), radix, width, padding, uppercase);
                                                         break;
                                                         
-                        case PRINTF_LENGTH_LONG:        printf_unsigned(va_arg(args, unsigned  long), radix, width, padding, uppercase);
+                        case PRINTF_LENGTH_LONG:        printf_unsigned(va_arg(args, int32_t), radix, width, padding, uppercase);
                                                         break;
 
-                        case PRINTF_LENGTH_LONG_LONG:   printf_unsigned(va_arg(args, unsigned  long long), radix, width, padding, uppercase);
+                        case PRINTF_LENGTH_LONG_LONG:   printf_unsigned(va_arg(args, int64_t), radix, width, padding, uppercase);
                                                         break;
                         }
                     }
@@ -688,24 +689,24 @@ void printf(const char* fmt, ...)
         graphics_swap_buffer();
 }
 
-void print_buffer(const char* msg, const void* buffer, uint32_t count)
+void kprint_buffer(const char* msg, const void* buffer, uint32_t count)
 {
     const uint8_t* u8Buffer = (const uint8_t*)buffer;
     
-    puts(msg);
+    kputs(msg);
     for (uint16_t i = 0; i < count; i++)
     {
-        putc(g_HexChars[u8Buffer[i] >> 4]);
-        putc(g_HexChars[u8Buffer[i] & 0xF]);
+        kputc(g_HexChars[u8Buffer[i] >> 4]);
+        kputc(g_HexChars[u8Buffer[i] & 0xF]);
     }
-    puts("\n");
+    kputs("\n");
 }
 
 // SprintF implementation that writes to a string buffer instead of the console and i want to die now please and thank you
-static void sprintf_unsigned(char** out, unsigned long long number, int radix, int width, char padding, bool uppercase)
+static void sprintf_unsigned(char** out, uint64_t number, int32_t radix, int32_t width, char padding, bool uppercase)
 {
     char buffer[64];
-    int pos = 0;
+    int32_t pos = 0;
     const char* hexChars = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
 
     do {
@@ -722,7 +723,7 @@ static void sprintf_unsigned(char** out, unsigned long long number, int radix, i
         *(*out)++ = buffer[pos];
 }
 
-static void sprintf_signed(char** out, long long number, int radix, int width, char padding, bool uppercase)
+static void sprintf_signed(char** out, int64_t number, int32_t radix, int32_t width, char padding, bool uppercase)
 {
     if (number < 0) {
         *(*out)++ = '-';
@@ -733,13 +734,13 @@ static void sprintf_signed(char** out, long long number, int radix, int width, c
 }
 
 // Basic double to string for cJSON support
-static void sprintf_float(char** out, double number, int precision) {
+static void sprintf_float(char** out, double number, int32_t precision) {
     if (number < 0) {
         *(*out)++ = '-';
         number = -number;
     }
 
-    long long int_part = (long long)number;
+    int64_t int_part = (int64_t)number;
     sprintf_signed(out, int_part, 10, 0, ' ', false);
 
     if (precision > 0) {
@@ -747,22 +748,22 @@ static void sprintf_float(char** out, double number, int precision) {
         double diff = number - (double)int_part;
         while (precision--) {
             diff *= 10;
-            int digit = (int)diff;
+            int32_t digit = (int32_t)diff;
             *(*out)++ = digit + '0';
             diff -= digit;
         }
     }
 }
 
-int vsprintf(char* str, const char* fmt, va_list args) {
+int32_t vsprintf(char* str, const char* fmt, va_list args) {
     char* start = str;
-    int state = PRINTF_STATE_NORMAL;
-    int length = PRINTF_LENGTH_DEFAULT;
-    int radix = 10;
+    int32_t state = PRINTF_STATE_NORMAL;
+    int32_t length = PRINTF_LENGTH_DEFAULT;
+    int32_t radix = 10;
     bool sign = false;
     bool number = false;
     bool uppercase = false;
-    int width = 0;
+    int32_t width = 0;
     char padding = ' ';
 
     while (*fmt) {
@@ -798,7 +799,7 @@ int vsprintf(char* str, const char* fmt, va_list args) {
             SPEC:
                 number = false;
                 switch (*fmt) {
-                    case 'c': *str++ = (char)va_arg(args, int); break;
+                    case 'c': *str++ = (char)va_arg(args, int32_t); break;
                     case 's': {
                         char* s = va_arg(args, char*);
                         while (*s) *str++ = *s++;
@@ -815,8 +816,8 @@ int vsprintf(char* str, const char* fmt, va_list args) {
                 }
 
                 if (number) {
-                    if (sign) sprintf_signed(&str, va_arg(args, long long), radix, width, padding, uppercase);
-                    else sprintf_unsigned(&str, va_arg(args, unsigned long long), radix, width, padding, uppercase);
+                    if (sign) sprintf_signed(&str, va_arg(args, int64_t), radix, width, padding, uppercase);
+                    else sprintf_unsigned(&str, va_arg(args, uint64_t), radix, width, padding, uppercase);
                 }
                 state = PRINTF_STATE_NORMAL;
                 break;
@@ -827,16 +828,16 @@ int vsprintf(char* str, const char* fmt, va_list args) {
     return str - start;
 }
 
-int sprintf(char* str, const char* format, ...)
+int32_t sprintf(char* str, const char* format, ...)
 {
     va_list args;
     va_start(args, format);
-    int ret = vsprintf(str, format, args);
+    int32_t ret = vsprintf(str, format, args);
     va_end(args);
     return ret;
 }
 
 // STUB: A proper sscanf is a lot of work.
-int sscanf(const char* str, const char* format, ...) {
+int32_t sscanf(const char* str, const char* format, ...) {
     return 0; // Pretend we parsed nothing.
 }

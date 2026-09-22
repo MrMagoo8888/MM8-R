@@ -1,62 +1,70 @@
 #include "idt.h"
-#include "stddef.h"
+#include "stdint.h"
+#include "binary.h"
+
+
+
 
 typedef struct
 {
-    uint16_t BaseLow;           // bits 0 - 15 of handler address
-    uint16_t SegmentSelector;   // GDT code segment selector (usually 0x08)
-    uint8_t  IST;               // interrupt Stack Table offset (0 for default stack)
-    uint8_t  Flags;             // attribute type flags
-    uint16_t BaseMid;           // bits 16 - 31 of handler address
-    uint32_t BaseHigh;          // bits 32 - 63 of handler address
-    uint32_t Reserved;          // Must be 0
+    uint16_t BaseLow;           // Offset bits 0..15
+    uint16_t SegmentSelector;   // GDT Code Segment selector
+    uint8_t  IST;               // Interrupt Stack Table offset (bits 0..2), rest is 0
+    uint8_t  Flags;             // Type and attributes
+    uint16_t BaseMid;           // Offset bits 16..31
+    uint32_t BaseHigh;          // Offset bits 32..63
+    uint32_t Reserved;          // Reserved, must be 0
 } __attribute__((packed)) IDTEntry;
+
 
 typedef struct
 {
     uint16_t   Limit;
-    uint64_t   Ptr;             
+    IDTEntry*  Ptr;             
 } __attribute__((packed)) IDTDescriptor;
 
-// 256 vector array table entries matching the procesor spec
-static IDTEntry g_IDT[256];
-static IDTDescriptor g_IDTDescriptor;
 
-extern void x86_64_IDT_Load(IDTDescriptor* idtDescriptor);
+IDTEntry g_IDT[256];
+
+
+IDTDescriptor g_IDTDescriptor = { sizeof(g_IDT) - 1, g_IDT };
+
+
+extern void load_idt(void);
+
+
 
 void x86_64_IDT_SetGate(int interrupt, void* base, uint16_t segmentDescriptor, uint8_t flags)
 {
-    uintptr_t addr = (uintptr_t)base; 
+    uint64_t address = (uint64_t)base;
 
-    g_IDT[interrupt].BaseLow         = (uint16_t)(addr & 0xFFFF);
+    g_IDT[interrupt].BaseLow         = address & 0xFFFF;
     g_IDT[interrupt].SegmentSelector = segmentDescriptor;
-    g_IDT[interrupt].IST             = 0;
+    g_IDT[interrupt].IST             = 0; // Default 0 unless you configure IST in TSS
     g_IDT[interrupt].Flags           = flags;
-    g_IDT[interrupt].BaseMid         = (uint16_t)((addr >> 16) & 0xFFFF);
-    g_IDT[interrupt].BaseHigh        = (uint32_t)((addr >> 32) & 0xFFFFFFFF);
+    g_IDT[interrupt].BaseMid         = (address >> 16) & 0xFFFF;
+    g_IDT[interrupt].BaseHigh        = (address >> 32) & 0xFFFFFFFF;
     g_IDT[interrupt].Reserved        = 0;
 }
 
 void x86_64_IDT_EnableGate(int interrupt)
 {
-    g_IDT[interrupt].Flags |= IDT_FLAG_PRESENT;
+    FLAG_SET(g_IDT[interrupt].Flags, IDT_FLAG_PRESENT);
 }
+
 
 void x86_64_IDT_DisableGate(int interrupt)
 {
-    g_IDT[interrupt].Flags &= ~IDT_FLAG_PRESENT;
+    FLAG_UNSET(g_IDT[interrupt].Flags, IDT_FLAG_PRESENT);
 }
+
+
 
 void x86_64_IDT_Initialize()
 {
-    g_IDTDescriptor.Limit = sizeof(g_IDT) - 1;
-    g_IDTDescriptor.Ptr   = (uint64_t)&g_IDT;
 
-    // direct inline fallback clearing out old garbage states
-    for (int i = 0; i < 256; i++) {
-        x86_64_IDT_SetGate(i, NULL, 0, 0);
-    }
+    x86_64_ISR_InitializeGates();
 
-    // call 64-bit assembly loader
-    x86_64_IDT_Load(&g_IDTDescriptor);
+
+    load_idt();
 }

@@ -1,157 +1,236 @@
-#include "string.h"
 #include "stddef.h"
 #include "stdint.h" 
 
-int strcmp(const char* str1, const char* str2) {    // accepts pointer inputs without modifying original strings
-    while (*str1 && (*str1 == *str2)) {     // checks if current char of str1 is not null terminator (\0), checks if both strings match, if y then both conditions
-        str1++;     // moves to next charecter
-        str2++;     // same
+void* memset(void *dest, int val, size_t len) {
+
+    unsigned char *ptr = (unsigned char*)dest;
+    unsigned char c = (unsigned char)val;
+
+    // align dest pointer to 8-byte bound
+    while(len > 0 && ((uintptr_t)ptr & 7) != 0) {
+        *ptr++ = c;
+        len--;
     }
-    return *(const unsigned char*)str1 - *(const unsigned char*)str2;   // casts pinters to unsigned chars, ensures extended ascii are treated positive, subtracts charecter values where the loop stopped
+
+    // optimize for 64-bit chunks if len is large enough
+    if (len >= 8) {
+        // broaden single byte to full 64-bit pattern
+        uint64_t val64 = c;
+        val64 |= (val64 << 8);
+        val64 |= (val64 << 16);
+        val64 |= (val64 << 32);
+
+        uint64_t *ptr64 = (uint64_t*)ptr;
+        while (len >= 8) {
+            *ptr64++ = val64;
+            len -= 8;
+        }
+        ptr = (unsigned char*)ptr64;
+    }
+
+    // clean remaining bytes
+    while (len > 0) {
+        *ptr++ = c;
+        len--;
+    }
+    return dest;
 }
 
-size_t strlen(const char* str) {
+
+
+void* memcpy(void *dest, const void *src, size_t len) {
+
+    unsigned char *d = (unsigned char*)dest;
+    const unsigned char *s = (unsigned char*)src;
+
+    // check if ptrs share same relitive alignmnt
+    // if lowest 3bits dont match they cant be aligned at same time
+    if (((uintptr_t)d & 7) == ((uintptr_t)s & 7)) {
+        while (len > 0 && ((uintptr_t)d & 7) != 0) {
+            *d++ = *s++;
+            len--;
+        }
+
+        // both are now 8-byt alignd do fast 64bit transfrs
+        if (len >= 8) {
+            uint64_t *d64 = (uint64_t*)d;
+            const uint64_t *s64 = (const uint64_t*)s;
+            while (len >= 8) {
+                *d64++ = *s64++;
+                len -= 8;
+            }
+            d = (unsigned char*)d64;
+            s = (const unsigned char*)s64;
+
+        }
+
+    }
+
+    // cpy trailing bytes
+    while (len > 0) {
+        *d++ = *s++;
+        len--;
+    }
+    return dest;
+}
+
+void* memmove(void *dest, const void *src, size_t len) {
+
+    unsigned char *d = dest;
+    const unsigned char *s = src;
+
+    if (len == 0 || d == s) return dest;
+
+    // if source and dest overlap and dest is ahead, copy backwards
+    if (d > s && d < s + len) {
+        d += len;
+        s += len;
+        
+        if (len >= 8) {
+            uint64_t *d64 = (uint64_t*)d;
+            const uint64_t *s64 = (const uint64_t*)s;
+            while (len >= 8) {
+                *--d64 = *--s64;
+                len -= 8;
+            }
+            d = (unsigned char*)d64;
+            s = (const unsigned char*)s64;
+        }
+        while (len--) {
+            *--d = *--s;
+        }
+    } else {
+        // no overlap, safe forward copy
+        return memcpy(dest, src, len);
+    }
+    return dest;
+}
+
+int memcmp(const void *str1, const void *str2, size_t count) {
+
+    const unsigned char *s1 = str1;
+    const unsigned char *s2 = str2;
+
+    while (count--) {
+        if (*s1 != *s2) {
+            return (*s1 < *s2) ? -1 : 1;
+        }
+        s1++;
+        s2++;
+    }
+    return 0;
+}
+
+static size_t internal_strnlen(const char *s, size_t maxlen) {
+
     size_t len = 0;
-    while (str[len]) {
+    while (len < maxlen && s[len] != '\0') {
         len++;
     }
     return len;
 }
 
-char* strcpy(char* dst, const char* src) {
-    char* origDst = dst;
-    while (*src) {
-        *dst++ = *src++;
+char* strncpy(char *s1, const char *s2, size_t n) {     // might page fault
+
+    size_t size = internal_strnlen(s2, n);
+    memcpy(s1, s2, size);
+    if (size < n) {
+        memset(s1 + size, '\0', n - size);
     }
-    *dst = '\0';
-    return origDst;
+    return s1;
 }
 
-char* strncpy(char* dst, const char* src, size_t n) {
-    size_t i;
-    for (i = 0; i < n && src[i] != '\0'; i++) {
-        dst[i] = src[i];
+char* strcpy(char *dest, const char *src) {  // might page fault
+    size_t len = 0;
+    
+    // Find the length of the string
+    while (src[len] != '\0') {
+        len++;
     }
-    for (; i < n; i++) {
-        dst[i] = '\0';
-    }
-    return dst;
+    
+    // cpy the string data + 1 byte for the '\0' terminator
+    memcpy(dest, src, len + 1);
+    
+    return dest;
 }
 
-int strncmp(const char* str1, const char* str2, size_t n) {
-    for(size_t i = 0; i < n; i++) {
-        if (str1[i] != str2[i]) {
-            return (unsigned char)str1[i] - (unsigned char)str2[i];
+int strcmp(const char *s1, const char *s2) {         // might page fault
+    const unsigned char *p1 = (const unsigned char *)s1;
+    const unsigned char *p2 = (const unsigned char *)s2;
+
+    while (*p1 && (*p1 == *p2)) {
+        p1++;
+        p2++;
+    }
+
+    // return negative value if s1 < s2, 0 if equal, positive if s1 > s2
+    return *p1 - *p2;
+}
+
+
+int strncmp(const char *s1, const char *s2, size_t n) {
+    // if n is 0, the strings are equal by def
+    if (n == 0) return 0;
+
+    const unsigned char *p1 = (const unsigned char *)s1;
+    const unsigned char *p2 = (const unsigned char *)s2;
+
+    // decrement n each iterationstop if characters mismatch or \0 
+    while (n > 1 && *p1 && (*p1 == *p2)) {
+        p1++;
+        p2++;
+        n--;
+    }
+
+    // eval final character difference
+    return *p1 - *p2;
+}
+
+
+char* strchr(const char *s, int c) {
+    char target = (char)c;
+
+    // scan until found character or hit null term
+    while (*s != target) {
+        if (*s == '\0') {
+            return NULL; // char not found
         }
-        if (str1[i] == '\0') {
-            return 0;   // both strings are equal up to n or less
-        }
-    }
-    return 0;   // strins are wqual for n chars
-}
-
-const char* strchr(const char* str, int c) {
-    while (*str != (char)c) {
-        if (!*str++) {
-            return 0;
-        }
-    }
-    return str;
-}
-
-const char* strrchr(const char* str, int c) {
-    const char* last = 0;
-    do {
-        if (*str == (char)c) {
-            last = str;
-        }
-    } while (*str++);
-    return last;
-}
-
-void* memcpy(void* dst, const void* src, size_t num)
-{
-    // 64-bit Optimization: Copy 8 bytes (uint64_t) at a time if aligned
-    if (((uintptr_t)dst % 8 == 0) && ((uintptr_t)src % 8 == 0) && (num % 8 == 0)) {
-        uint64_t* u64Dst = (uint64_t *)dst;
-        const uint64_t* u64Src = (const uint64_t *)src;
-        size_t n = num / 8;
-        for (size_t i = 0; i < n; i++)
-            u64Dst[i] = u64Src[i];
-        return dst;
+        s++;
     }
 
-    // Fallback forward copy byte-by-byte
-    uint8_t* u8Dst = (uint8_t *)dst;
-    const uint8_t* u8Src = (const uint8_t *)src;
-
-    for (size_t i = 0; i < num; i++)
-        u8Dst[i] = u8Src[i];
-
-    return dst;
+    // return the pointer casting away constness
+    return (char *)s;
 }
 
-void* memset(void* ptr, int value, size_t num)
-{
-    uint8_t* u8Ptr = (uint8_t*)ptr;
 
-    // 64-bit Optimization: Fill 8 bytes (uint64_t) at a time if possible
-    if (num >= 8 && ((uintptr_t)ptr % 8 == 0)) {
-        uint64_t v64 = (uint8_t)value;
-        v64 |= (v64 << 8);
-        v64 |= (v64 << 16);
-        v64 |= (v64 << 24);
-        v64 |= (v64 << 32);
-        v64 |= (v64 << 40);
-        v64 |= (v64 << 48);
-        v64 |= (v64 << 56);
 
-        uint64_t* u64Ptr = (uint64_t*)ptr;
-        size_t n64 = num / 8;
-        for (size_t i = 0; i < n64; i++) {
-            u64Ptr[i] = v64;
-        }
+char* strrchr(const char *s, int c) {
+    char target = (char)c;
+    size_t len = 0;
 
-        u8Ptr += n64 * 8;
-        num %= 8;
+    // find end of string
+    while (s[len] != '\0') {
+        len++;
     }
 
-    while (num--) {
-        *u8Ptr++ = (uint8_t)value;
-    }
-
-    return ptr;
-}
-
-int memcmp(const void* ptr1, const void* ptr2, size_t num)
-{
-    const uint8_t* u8Ptr1 = (const uint8_t *)ptr1;
-    const uint8_t* u8Ptr2 = (const uint8_t *)ptr2;
-
-    for (size_t i = 0; i < num; i++)
-    {
-        if (u8Ptr1[i] != u8Ptr2[i])
-            return (int)u8Ptr1[i] - (int)u8Ptr2[i];
-    }
-
-    return 0;
-}
-
-void* memmove(void* dst, const void* src, size_t num)
-{
-    uint8_t* u8Dst = (uint8_t*)dst;
-    const uint8_t* u8Src = (const uint8_t*)src;
-
-    // Direct pointer comparison is perfectly legal and safe in 64-bit flat mode
-    if (u8Dst < u8Src) {
-        for (size_t i = 0; i < num; i++) {
-            u8Dst[i] = u8Src[i];
-        }
-    } else { 
-        for (size_t i = num; i > 0; i--) {
-            u8Dst[i-1] = u8Src[i-1];
+    size_t i = len + 1; // include null terminator in search space
+    while (i > 0) {
+        i--;
+        if (s[i] == target) {
+            return (char *)(s + i); // found rightmost match
         }
     }
 
-    return dst;
+    return NULL; // cahr not found
 }
+
+
+
+size_t strlen(const char *s) {
+    const char *p = s;
+    while (*p != '\0') {
+        p++;
+    }
+    return (size_t)(p - s);
+}
+
