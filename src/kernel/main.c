@@ -78,8 +78,8 @@ void kernel_main(uint64_t multiboot_addr, uint64_t magic) {
 
 
     //console_initialize();
-    putchr(15, 15, 'z');
-    printf("Hello");
+    kputchr(15, 15, 'z');
+    kprintf("Hello");
 
     while (1) {
     }
