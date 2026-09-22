@@ -1,8 +1,8 @@
 #pragma once
 #include <stdint.h>
 
-// A simple 8x8 bitmap font for ASCII characters 32-127.
-// Each byte represents a row of 8 pixels.
+// simple 8x8 bitmap font - ASCII characters 32-127
+// each byte represents row of 8 pixels
 static const uint8_t font8x8_basic[96][8] = {
     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, // Space
     { 0x18, 0x3C, 0x3C, 0x18, 0x18, 0x00, 0x18, 0x00 }, // !

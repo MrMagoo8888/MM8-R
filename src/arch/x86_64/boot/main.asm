@@ -210,7 +210,6 @@ page_table_l3:
 page_table_l2:
     resb 4096 * 8   ; 8 l2s for 8gb
 
-stack_bum:
     resb 4096 * 4
 global stack_top
 stack_top:
@@ -218,6 +217,7 @@ stack_top:
 
 
 section .rodata
+global page_table_l4
 
 gdt64:
 .code_segment_start:

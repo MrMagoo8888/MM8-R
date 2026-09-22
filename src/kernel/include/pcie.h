@@ -53,7 +53,60 @@ int strncmp(const char* s1, const char* s2, size_t n);
 acpi_header_t* find_mcfg_table(void* rsdp_phys_ptr, uint64_t virtual_offset);
 void initPcie(acpi_header_t* mcfg_header, uint64_t virtual_offset, uint64_t* pml4_virt);
 void map_pcie_ecam_2mb(uint64_t* pml4_virt, uint64_t phys_base, uint64_t virt_base, uint64_t size_bytes, uint64_t virtual_offset);
-void pcie_enumerate_devices(uint64_t ecam_virt_base);
+void pcie_enumerate_devices(uint64_t ecam_virt_base, uint8_t start_bus, uint8_t end_bus);
 volatile uint32_t* get_pcie_config_addr(uint64_t ecam_virt_base, uint8_t bus, uint8_t device, uint8_t function, uint16_t offset);
+
+// Enable the device's command register bits (memory space, bus master)
+void pcie_enable_device(uint64_t ecam_virt_base, uint8_t bus, uint8_t device, uint8_t function);
+
+// Read BAR address and size helpers
+uint64_t pcie_get_bar(uint64_t ecam_virt_base, uint8_t bus, uint8_t device, uint8_t function, uint8_t bar_index);
+uint64_t pcie_get_bar_size(uint64_t ecam_virt_base, uint8_t bus, uint8_t device, uint8_t function, uint8_t bar_index);
+
+// Runtime info populated during MCFG parsing
+extern int pcie_mcfg_count;
+extern uint64_t pcie_mcfg_base[16];
+extern uint8_t pcie_mcfg_start_bus[16];
+extern uint8_t pcie_mcfg_end_bus[16];
+
+// Simple device record for enumeration
+typedef struct {
+    uint8_t bus;
+    uint8_t device;
+    uint8_t function;
+    uint16_t vendor_id;
+    uint16_t device_id;
+    uint8_t class_code;
+    uint8_t subclass;
+    uint64_t bars[6];
+    uint64_t bar_size[6];
+    uint64_t bars_virt[6];
+} pci_device_t;
+
+// device table populated by enumeration
+#define PCIE_MAX_DEVICES 1024
+extern pci_device_t pcie_devices[];
+extern int pcie_device_count;
+
+// Map a physical MMIO range into virtual memory under kernel-managed region.
+void map_mmio_region(uint64_t phys_base, uint64_t virt_base, uint64_t size_bytes);
+
+// Convenience: allocate and map a BAR for a device, returns virt base or 0 on fail
+uint64_t pcie_map_bar_for_device(pci_device_t* dev, int bar_index);
+// Map arbitrary physical MMIO and return virtual base
+uint64_t pcie_map_phys_mmio(uint64_t phys, uint64_t size);
+
+// Set PML4 and virtual offset to allow mapping helpers to allocate page tables
+void pcie_set_pml4_and_offset(uint64_t* pml4, uint64_t virtual_offset);
+
+// PCI capability helpers and MSI-X support
+int pcie_find_capability(uint64_t ecam_virt_base, uint8_t bus, uint8_t device, uint8_t function, uint8_t cap_id);
+
+// Map and inspect an MSI-X table for a given device. Returns number of table entries (0 on fail).
+int pcie_map_msix_table(pci_device_t* dev, uint64_t ecam_virt_base, uintptr_t* out_table_virt, uint32_t* out_table_size_entries);
+
+// Enable MSI-X for a device by programming table entries with vectors allocated from the kernel.
+// Returns 0 on success, negative on failure.
+int pcie_enable_msix_for_device(pci_device_t* dev, uint64_t ecam_virt_base);
 
 #endif /* PCIE_H */

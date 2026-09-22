@@ -4,6 +4,7 @@
 #include "stdio.h"
 #include "../arch/x86_64/interrupts/gdt.h"
 #include "../arch/x86_64/interrupts/idt.h"
+#include "pcie.h"
 
 /*struct multiboot_tag {
     uint32_t type;
@@ -50,7 +51,15 @@ void kernel_main(uint64_t multiboot_addr, uint64_t magic) {
     }
 
     if (acpi_rsdp) {
-        // init pcie
+        // try to find MCFG and initialize PCIe ECAM mappings
+        extern uint64_t page_table_l4; // from assembly
+        acpi_header_t* mcfg = find_mcfg_table(acpi_rsdp, 0);
+        if (mcfg) {
+            initPcie(mcfg, 0, (uint64_t*)&page_table_l4);
+            // after PCIe init, let pcie code know PML4 and offset
+            extern void pcie_set_pml4_and_offset(uint64_t* pml4, uint64_t virtual_offset);
+            pcie_set_pml4_and_offset((uint64_t*)&page_table_l4, 0);
+        }
     }
 
     // test allocations so allocator exercised
@@ -67,7 +76,10 @@ void kernel_main(uint64_t multiboot_addr, uint64_t magic) {
     // Color hex format: 0x00RRGGBB
     vbe_put_pixel(100, 100, 0x000000FF);
 
-    putchr(15, 15, "a");
+
+    //console_initialize();
+    putchr(15, 15, 'z');
+    printf("Hello");
 
     while (1) {
     }

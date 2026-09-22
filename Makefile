@@ -1,3 +1,12 @@
+COLOUR_GREEN=\033[0;32m
+COLOUR_RED=\033[0;31m
+COLOUR_BLUE=\033[0;34m
+COLOUR_END=\033[0m
+
+
+
+
+
 ARCH        ?= x86_64
 SRC_DIR     := src
 BUILD_DIR   := build/$(ARCH)
@@ -57,17 +66,20 @@ build-$(ARCH): $(KERNEL_ISO)
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.asm
 	@mkdir -p $(dir $@)
 	$(NASM) $(ASM_FLAGS) $< -o $@
+	@echo "$(COLOUR_GREEN)Assembled $< to $@ $(COLOR_END)"
 
 # inc to obj
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.inc
 	@mkdir -p $(dir $@)
 	$(NASM) $(ASM_FLAGS) $< -o $@
+	@echo "$(COLOUR_GREEN)Assembled $< to $@ $(COLOR_END)"
 
 
 # c to obj
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
+	@echo "$(COLOUR_GREEN)Assembled $< to $@ $(COLOR_END)"
 
 # link kernel bin
 $(KERNEL_BIN): $(ASM_OBJS) $(C_OBJS)
