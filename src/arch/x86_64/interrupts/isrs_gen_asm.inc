@@ -7,6 +7,7 @@
     pop rax    ; remove error code pushed by CPU
     iretq
 %endmacro
+extern keyboard_irq_handler
 
 global x86_64_ISR_ASM_0
 x86_64_ISR_ASM_0:
@@ -138,11 +139,49 @@ x86_64_ISR_ASM_31:
 
 global x86_64_ISR_ASM_32
 x86_64_ISR_ASM_32:
-    ISR_NOERRORCODE 32
+    push rax
+    push rdx
+    mov al, 0x20
+    mov dx, 0x20
+    out dx, al
+    pop rdx
+    pop rax
+    iretq
 
 global x86_64_ISR_ASM_33
 x86_64_ISR_ASM_33:
-    ISR_NOERRORCODE 33
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    push rbp
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+    call keyboard_irq_handler
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rbp
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
+    iretq
 
 global x86_64_ISR_ASM_34
 x86_64_ISR_ASM_34:

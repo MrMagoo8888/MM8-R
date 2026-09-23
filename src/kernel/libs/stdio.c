@@ -81,8 +81,14 @@ void console_initialize() {
         kprintf("WARNING: Failed to allocate scrollback buffer.\n");
     }
 
-    // Clear buffers
-    if (g_ShadowBuffer) memset(g_ShadowBuffer, 0, g_ConsoleWidth * g_ConsoleHeight * 2);
+    // Clear buffers and give every cell a visible default color.
+    if (g_ShadowBuffer) {
+        size_t cell_count = (size_t)g_ConsoleWidth * g_ConsoleHeight;
+        for (size_t cell = 0; cell < cell_count; cell++) {
+            g_ShadowBuffer[cell * 2] = '\0';
+            g_ShadowBuffer[cell * 2 + 1] = DEFAULT_COLOR;
+        }
+    }
     if (scrollback_buffer) memset(scrollback_buffer, 0, SCROLLBACK_LINES * g_ConsoleWidth);
 
     // Enable double buffering for the console

@@ -5,6 +5,7 @@
 #include "../arch/x86_64/interrupts/gdt.h"
 #include "../arch/x86_64/interrupts/idt.h"
 #include "pcie.h"
+#include "keyboard.h"
 
 /*struct multiboot_tag {
     uint32_t type;
@@ -22,6 +23,9 @@ void kernel_main(uint64_t multiboot_addr, uint64_t magic) {
     memory_init(multiboot_addr);
     x86_64_IDT_Initialize();
     vbe_init(multiboot_addr);
+    console_initialize();
+    keyboard_initialize();
+    __asm__ volatile ("sti");
 
     // parse mbi total size
     uint32_t mbi_size = *(volatile uint32_t*)multiboot_addr;
@@ -77,10 +81,15 @@ void kernel_main(uint64_t multiboot_addr, uint64_t magic) {
     vbe_put_pixel(100, 100, 0x000000FF);
 
 
-    //console_initialize();
     kputchr(15, 15, 'z');
-    kprintf("Hello");
+    kprintf("Hello\n");
+    kputs("> ");
 
     while (1) {
+        int character = keyboard_getchar();
+
+        if (character >= 0) {
+            kputc((char)character);
+        }
     }
 }
