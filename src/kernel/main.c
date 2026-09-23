@@ -85,7 +85,7 @@ void kernel_main(uint64_t multiboot_addr, uint64_t magic) {
     kprintf("Hello\n");
     kputs("> ");
 
-    while (1) {
+    while (1) { // Copy from MM8 - Try to get same functionality
         int character = keyboard_getchar();
 
         if (character >= 0) {
