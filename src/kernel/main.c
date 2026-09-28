@@ -6,6 +6,7 @@
 #include "../arch/x86_64/interrupts/idt.h"
 #include "pcie.h"
 #include "keyboard.h"
+#include "basicShell.h"
 
 /*struct multiboot_tag {
     uint32_t type;
@@ -80,16 +81,27 @@ void kernel_main(uint64_t multiboot_addr, uint64_t magic) {
     // Color hex format: 0x00RRGGBB
     vbe_put_pixel(100, 100, 0x000000FF);
 
+    char inputBuff[256];
 
-    kputchr(15, 15, 'z');
-    kprintf("Hello\n");
-    kputs("> ");
+
+    // move to console init with own template
+    //kputchr(15, 15, 'z');
+    //kprintf("Hello\n");
+    //kputs("> ");
 
     while (1) { // Copy from MM8 - Try to get same functionality
-        int character = keyboard_getchar();
+        kprintf("> ");
+        //kprintf("sanity0");
 
-        if (character >= 0) {
-            kputc((char)character);
-        }
+        kgets(inputBuff, sizeof(inputBuff));
+        //kprintf("sanity1");
+
+        commandDispatcher(inputBuff);
+        //kprintf("sanity2");
     }
+
+    for (;;);
 }
+
+// TODO
+// Stylise Help menu
