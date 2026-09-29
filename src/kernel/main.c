@@ -104,4 +104,4 @@ void kernel_main(uint64_t multiboot_addr, uint64_t magic) {
 }
 
 // TODO
-// Stylise Help menu
+// Add splashes and shell splash
