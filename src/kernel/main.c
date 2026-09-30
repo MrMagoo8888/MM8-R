@@ -7,6 +7,7 @@
 #include "pcie.h"
 #include "keyboard.h"
 #include "basicShell.h"
+#include "splash.h"
 
 /*struct multiboot_tag {
     uint32_t type;
@@ -81,7 +82,7 @@ void kernel_main(uint64_t multiboot_addr, uint64_t magic) {
     // Color hex format: 0x00RRGGBB
     vbe_put_pixel(100, 100, 0x000000FF);
 
-    char inputBuff[256];
+    //char inputBuff[256];
 
 
     // move to console init with own template
@@ -89,19 +90,20 @@ void kernel_main(uint64_t multiboot_addr, uint64_t magic) {
     //kprintf("Hello\n");
     //kputs("> ");
 
+    splash();
+
+    // lets keep loop minimal, init shell in shell place and then keep loop free for emergency stuff
     while (1) { // Copy from MM8 - Try to get same functionality
-        kprintf("> ");
-        //kprintf("sanity0");
+        mainShell();    // init the shell
 
-        kgets(inputBuff, sizeof(inputBuff));
-        //kprintf("sanity1");
-
-        commandDispatcher(inputBuff);
-        //kprintf("sanity2");
-    }
+        // if anyhting happens outside the shell it will go here
+        kprintf("Something is wrong...");
+        
 
     for (;;);
+    }
 }
+
 
 // TODO
 // Add splashes and shell splash
