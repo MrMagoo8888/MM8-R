@@ -1,4 +1,6 @@
-#pragma once
+#ifndef STDIO_H
+#define STDIO_H
+
 #include "stdint.h"
 #include "stdbool.h"
 //#include "arch/i686/screen_defs.h"
@@ -31,3 +33,5 @@ void view_scrollback_down();
 
 int sprintf(char* str, const char* format, ...);
 int sscanf(const char* str, const char* format, ...);
+
+#endif

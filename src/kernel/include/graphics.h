@@ -1,4 +1,5 @@
-#pragma once
+#ifndef GRAPHICS_H
+#define GRAPHICS_H
 
 #include "stdint.h"
 #include "stdbool.h"
@@ -15,3 +16,5 @@ void graphics_init_double_buffer();
 void graphics_swap_buffer();
 void graphics_clear_buffer(uint32_t color);
 void graphics_set_double_buffering(bool enabled);
+
+#endif

@@ -1,7 +1,5 @@
-#pragma once
-
-#ifndef MY_STDINT_H
-#define MY_STDINT_H
+#ifndef STDINT_H
+#define STDINT_H
 
 /*
  * Portable stdint.h for a hypothetical standalone OS.

@@ -1,3 +1,6 @@
+#ifndef STRING_H
+#define STRING_H
+
 #include "stddef.h"
 
 void* memcpy (void *dest, const void *src, size_t len);
@@ -15,3 +18,5 @@ char* strrchr(const char *s, int c);
 char* strchr(const char *s, int c);
 
 size_t strlen(const char *s);
+
+#endif

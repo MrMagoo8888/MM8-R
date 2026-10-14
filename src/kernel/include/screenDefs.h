@@ -1,4 +1,6 @@
-#pragma once
+#ifndef SCREENDEFS_H
+#define SCREENDEFS_H
+
 #define SCROLLBACK_LINES 2
 #define SCREEN_WIDTH 80
 #define SCREEN_HEIGHT 25
@@ -24,3 +26,5 @@
 //#define DEFAULT_COLOR 0x07
 
 extern unsigned char DEFAULT_COLOR;
+
+#endif

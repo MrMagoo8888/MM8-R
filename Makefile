@@ -19,9 +19,11 @@ LD          := $(TOOLCHAIN_BIN)/x86_64-elf-ld
 CC          := $(TOOLCHAIN_BIN)/x86_64-elf-gcc
 
 CFLAGS      := -m64 -ffreestanding -fno-builtin -O2 -Wall -Wextra \
+				 -DCONFIG_USE_DEFAULT_CFG=1 -DCONFIG_HAVE_OWN_ERRNO=1 \
 				 -I$(SRC_DIR)/kernel/include \
 				 -I$(SRC_DIR)/arch/x86_64/include \
-				 -I$(SRC_DIR)/arch/x86_64/interrupts 
+				 -I$(SRC_DIR)/arch/x86_64/interrupts \
+				 -I$(SRC_DIR)/kernel/fs/ext4/include
 
 ASM_FLAGS   := -f elf64
 LD_FLAGS    := -n -T $(TARGET_DIR)/linker.ld

@@ -100,7 +100,7 @@ void kernel_main(uint64_t multiboot_addr, uint64_t magic) {
         kprintf("Something is wrong...");
         
 
-    for (;;);
+    //for (;;);
     }
 }
 
