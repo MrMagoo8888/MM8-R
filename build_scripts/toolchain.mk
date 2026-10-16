@@ -50,7 +50,7 @@ $(TOOLCHAIN_I686)/bin/i686-elf-gcc: $(TOOLCHAIN_I686)/bin/i686-elf-ld $(GCC_SRC)
 	cd toolchain && tar -xf gcc-$(GCC_VERSION).tar.xz
 	cd $(GCC_SRC) && ./contrib/download_prerequisites
 	mkdir -p $(GCC_BUILD_32)
-	cd $(GCC_BUILD_32) && CFLAGS="-Wno-error -fpermissive" CXXFLAGS="-Wno-error -fpermissive" ASMFLAGS= CC= CXX= LD= ASM= LINKFLAGS= LIBS= ../gcc-$(GCC_VERSION)/configure \
+	cd $(GCC_BUILD_32) && CFLAGS="-Wno-error -fpermissive" CXXFLAGS="-Wno-error -fpermissive -fno-char8_t -include locale" ASMFLAGS= CC= CXX= LD= ASM= LINKFLAGS= LIBS= ../gcc-$(GCC_VERSION)/configure \
 		--prefix="$(TOOLCHAIN_I686)" 	\
 		--target=i686-elf				\
 		--disable-nls					\
@@ -78,7 +78,7 @@ $(TOOLCHAIN_X86_64)/bin/x86_64-elf-gcc: $(TOOLCHAIN_X86_64)/bin/x86_64-elf-ld $(
 	cd toolchain && tar -xf gcc-$(GCC_VERSION).tar.xz
 	cd $(GCC_SRC) && ./contrib/download_prerequisites
 	mkdir -p $(GCC_BUILD_64)
-	cd $(GCC_BUILD_64) && CFLAGS="-Wno-error -fpermissive" CXXFLAGS="-Wno-error -fpermissive" ASMFLAGS= CC= CXX= LD= ASM= LINKFLAGS= LIBS= ../gcc-$(GCC_VERSION)/configure \
+	cd $(GCC_BUILD_64) && CFLAGS="-Wno-error -fpermissive" CXXFLAGS="-Wno-error -fpermissive -fno-char8_t -include locale" ASMFLAGS= CC= CXX= LD= ASM= LINKFLAGS= LIBS= ../gcc-$(GCC_VERSION)/configure \
 		--prefix="$(TOOLCHAIN_X86_64)" 	\
 		--target=x86_64-elf				\
 		--disable-nls					\

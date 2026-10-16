@@ -3,7 +3,12 @@ COLOUR_RED=\033[0;31m
 COLOUR_BLUE=\033[0;34m
 COLOUR_END=\033[0m
 
+TOOLCHAIN_GOALS := toolchain_all toolchain_32 toolchain_64 clean-toolchain clean-toolchain-all
 
+ifneq ($(filter $(TOOLCHAIN_GOALS),$(MAKECMDGOALS)),)
+include build_scripts/config.mk
+include build_scripts/toolchain.mk
+endif
 
 
 
@@ -13,10 +18,11 @@ BUILD_DIR   := build/$(ARCH)
 DIST_DIR    := dist/$(ARCH)
 TARGET_DIR  := targets/$(ARCH)
 
-TOOLCHAIN_BIN := /home/mm8/code/os/mm8/MM8-R/toolchain/x86_64-elf/bin
+TOOLCHAIN_BIN := toolchain/x86_64-elf/bin
 NASM        := nasm
 LD          := $(TOOLCHAIN_BIN)/x86_64-elf-ld
 CC          := $(TOOLCHAIN_BIN)/x86_64-elf-gcc
+GRUB_MKRESCUE ?= $(shell command -v grub-mkrescue 2>/dev/null || command -v grub2-mkrescue 2>/dev/null)
 
 CFLAGS      := -m64 -ffreestanding -fno-builtin -O2 -Wall -Wextra \
 				 -DCONFIG_USE_DEFAULT_CFG=1 -DCONFIG_HAVE_OWN_ERRNO=1 \
@@ -92,7 +98,11 @@ $(KERNEL_BIN): $(ASM_OBJS) $(C_OBJS)
 $(KERNEL_ISO): $(KERNEL_BIN)
 	@mkdir -p $(dir $(BOOT_BIN))
 	cp $< $(BOOT_BIN)
-	grub-mkrescue -d /usr/lib/grub/i386-pc -o $@ $(TARGET_DIR)/iso
+	@if [ -z "$(GRUB_MKRESCUE)" ]; then \
+		echo "Error: grub-mkrescue or grub2-mkrescue is required to build the ISO." >&2; \
+		exit 1; \
+	fi
+	$(GRUB_MKRESCUE) -d /usr/lib/grub/i386-pc -o $@ $(TARGET_DIR)/iso
 
 clean:
 	rm -rf build dist
