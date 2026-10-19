@@ -1,0 +1,3 @@
+Ramdisk             - TAR
+Boot Image Format   - FAT32
+Internal            - Ext2
