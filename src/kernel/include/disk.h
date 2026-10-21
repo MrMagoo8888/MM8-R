@@ -1,0 +1,21 @@
+#pragma once
+
+#include <stdint.h>
+#include <stdbool.h>
+
+typedef enum {
+    DISK_TYPE_ATA,
+    DISK_TYPE_USB
+} DISK_TYPE;
+
+typedef struct {
+    uint8_t id;
+    DISK_TYPE type;
+    void* driver_data; // Pointer to controller-specific info
+} DISK;
+
+bool DISK_Initialize(DISK* disk, uint8_t driveNumber);
+/* ATA PIO currently supports BIOS-style drive numbers 0x80 (master) and
+   0x81 (slave) on the primary legacy ATA channel. */
+bool DISK_ReadSectors(DISK* disk, uint32_t lba, uint8_t count, void* buffer);
+bool DISK_WriteSectors(DISK* disk, uint32_t lba, uint8_t count, const void* buffer);

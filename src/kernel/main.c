@@ -9,6 +9,9 @@
 #include "basicShell.h"
 #include "splash.h"
 
+// Disk Ops
+#include "disk.h"
+
 /*struct multiboot_tag {
     uint32_t type;
     uint32_t size;
@@ -27,8 +30,19 @@ void kernel_main(uint64_t multiboot_addr, uint64_t magic) {
     vbe_init(multiboot_addr);
     console_initialize();
     keyboard_initialize();
+
+    // Disk Ops
+    DISK disk = {0};
+    if (!DISK_Initialize(&disk, 0x80)) {
+        kprintf("Disk initialization failed.\n");
+    }
+    DISK_Initialize(&disk, 0x80);
+
+
     __asm__ volatile ("sti");
 
+
+    
     // parse mbi total size
     uint32_t mbi_size = *(volatile uint32_t*)multiboot_addr;
 
